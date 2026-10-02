@@ -15,6 +15,7 @@ from .driver import BrowserDriver
 from .selenium_driver import SeleniumDriver
 from .providers import default_browser, select_provider
 from .provider_learning import select_learned_provider
+from .execution_fabric import ExecutionObservation, decide_execution
 from .builtins import BUILTIN_NAMES, BUILTIN_TOOLS, call_builtin
 from .engines import AdaptiveReader
 from .profiles import ProfileStore
@@ -174,6 +175,7 @@ class BridgeRuntime:
         provider: str = "auto",
         browser: str = "auto",
         provider_history: tuple[dict, ...] = (),
+        execution_history: tuple[dict, ...] = (),
     ) -> None:
         self.initial_url = url
         self.allowed_hosts = tuple(allowed_hosts)
@@ -196,7 +198,14 @@ class BridgeRuntime:
             browser_requirement = None if browser == "auto" else browser
             if provider == "playwright" and browser_requirement == "chrome":
                 browser_requirement = "chromium"
-            if provider == "auto" and provider_history:
+            if provider == "auto" and execution_history:
+                decision = decide_execution(
+                    browser=browser_requirement,
+                    history=execution_history,
+                )
+                self.provider = decision.provider
+                self.browser = decision.browser
+            elif provider == "auto" and provider_history:
                 self.provider = select_learned_provider(
                     browser=browser_requirement,
                     history=provider_history,
