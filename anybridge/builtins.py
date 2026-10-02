@@ -5,6 +5,7 @@ import importlib.util
 from urllib.parse import urlsplit
 
 from .browser import PageBridge
+from .checkpoint import CheckpointStore, decide_resume, make_checkpoint
 from .engines import AdaptiveReader
 from .profiles import ProfileStore
 from .repositories import PreparedRepository, RepositoryManager, RepositoryStore
@@ -214,6 +215,31 @@ BUILTIN_TOOLS = [
             "type": "object",
             "properties": {"full_page": {"type": "boolean", "default": False}},
         },
+    },
+    {
+        "name": "save_checkpoint",
+        "description": "Save a crash-safe execution checkpoint. Checkpoints are resume boundaries, not permission to replay side effects.",
+        "inputSchema": {"type": "object", "properties": {
+            "path": {"type": "string", "description": "Local checkpoint JSON path"},
+            "execution_id": {"type": "string"},
+            "checkpoint_id": {"type": "string"},
+            "step_index": {"type": "integer"},
+            "action": {"type": "string"},
+            "target": {"type": "string"},
+            "expected": {},
+            "observed": {},
+            "safe_to_resume": {"type": "boolean", "default": false}
+        }, "required": ["path", "execution_id", "checkpoint_id", "step_index", "action"]},
+    },
+    {
+        "name": "resume_checkpoint",
+        "description": "Inspect a saved checkpoint and decide whether resume is safe after current-state revalidation.",
+        "inputSchema": {"type": "object", "properties": {
+            "path": {"type": "string"},
+            "current_url": {"type": "string"},
+            "current_target_exists": {"type": "boolean"},
+            "recovery_confidence": {"type": "number"}
+        }, "required": ["path"]},
     },
     {
         "name": "reset_session",
@@ -595,6 +621,31 @@ async def call_builtin(
         )
     if name == "screenshot":
         return await bridge.screenshot(full_page=bool(args.get("full_page")))
+    if name == "save_checkpoint":
+        current = await bridge.current_site()
+        checkpoint = make_checkpoint(
+            execution_id=str(args["execution_id"]),
+            checkpoint_id=str(args["checkpoint_id"]),
+            step_index=int(args["step_index"]),
+            action=str(args["action"]),
+            target=args.get("target"),
+            url=current.get("url"),
+            expected=args.get("expected"),
+            observed=args.get("observed"),
+            evidence={"site": current},
+            safe_to_resume=bool(args.get("safe_to_resume", False)),
+        )
+        CheckpointStore(str(args["path"])).save(checkpoint)
+        return json.dumps(checkpoint.to_dict(), indent=2, ensure_ascii=False)
+    if name == "resume_checkpoint":
+        checkpoint = CheckpointStore(str(args["path"])).load()
+        decision = decide_resume(
+            checkpoint,
+            current_url=args.get("current_url") or (await bridge.current_site()).get("url"),
+            current_target_exists=args.get("current_target_exists"),
+            recovery_confidence=float(args.get("recovery_confidence") or 0.0),
+        )
+        return json.dumps(decision.__dict__, indent=2, ensure_ascii=False)
     if name == "reset_session":
         return await bridge.reset()
     if name == "network_policy":
