@@ -299,6 +299,8 @@ def main():
                 allowed_hosts=args.allowed_host,
                 allowed_origins=args.allowed_origin,
                 idle_timeout=args.idle_timeout,
+                provider=args.provider,
+                browser=args.browser,
             )
             return
         asyncio.run(args.func(args))
