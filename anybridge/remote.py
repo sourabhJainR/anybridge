@@ -76,7 +76,7 @@ def create_remote_app(
         allowed_origins=list(allowed_origins),
     )
     manager = StreamableHTTPSessionManager(
-        app=create_server(),
+        app=create_server(provider=provider, browser=browser),
         json_response=True,
         stateless=False,
         security_settings=security,
