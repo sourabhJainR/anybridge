@@ -11,6 +11,7 @@ from mcp.server import NotificationOptions, Server
 from mcp.server.stdio import stdio_server
 
 from .browser import PageBridge
+from .selenium_driver import SeleniumDriver
 from .builtins import BUILTIN_NAMES, BUILTIN_TOOLS, call_builtin
 from .engines import AdaptiveReader
 from .profiles import ProfileStore
@@ -36,6 +37,7 @@ _NO_BROWSER_NEEDED = {
     "remove_profile",
     "list_workflows",
     "remove_workflow",
+    "run_bdd",
 }
 _PAGE_MAY_CHANGE = {
     "navigate",
@@ -165,6 +167,8 @@ class BridgeRuntime:
         bridge: PageBridge | None = None,
         allow_private_network: bool = True,
         allowed_hosts: tuple[str, ...] | list[str] = (),
+        provider: str = "playwright",
+        browser: str = "chrome",
     ) -> None:
         self.initial_url = url
         self.allowed_hosts = tuple(allowed_hosts)
@@ -178,12 +182,20 @@ class BridgeRuntime:
         self.adaptive = adaptive or AdaptiveReader(
             allow_private_network=allow_private_network
         )
-        self.bridge = bridge or PageBridge(
-            url,
-            headless=headless,
-            allow_private_network=allow_private_network,
-            allowed_hosts=self.allowed_hosts,
-        )
+        if bridge is not None:
+            self.bridge = bridge
+        elif provider.casefold() == "selenium":
+            self.bridge = SeleniumDriver(
+                url, headless=headless, allow_private_network=allow_private_network,
+                allowed_hosts=self.allowed_hosts, browser=browser,
+            )
+        elif provider.casefold() == "playwright":
+            self.bridge = PageBridge(
+                url, headless=headless, allow_private_network=allow_private_network,
+                allowed_hosts=self.allowed_hosts,
+            )
+        else:
+            raise ValueError(f"Unsupported browser provider: {provider!r}")
         self._start_lock = asyncio.Lock()
 
     async def ensure_browser(self) -> None:
