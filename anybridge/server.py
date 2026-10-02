@@ -172,6 +172,7 @@ class BridgeRuntime:
         allowed_hosts: tuple[str, ...] | list[str] = (),
         provider: str = "auto",
         browser: str = "auto",
+        provider_history: tuple[dict, ...] = (),
     ) -> None:
         self.initial_url = url
         self.allowed_hosts = tuple(allowed_hosts)
@@ -191,10 +192,17 @@ class BridgeRuntime:
             self.browser = getattr(bridge, "browser", browser)
             self.bridge = bridge
         else:
-            self.provider = select_provider(
-                preferred=None if provider == "auto" else provider,
-                browser=None if browser == "auto" else browser,
-            )
+            browser_requirement = None if browser == "auto" else browser
+            if provider == "auto" and provider_history:
+                self.provider = select_learned_provider(
+                    browser=browser_requirement,
+                    history=provider_history,
+                )
+            else:
+                self.provider = select_provider(
+                    preferred=None if provider == "auto" else provider,
+                    browser=browser_requirement,
+                )
             self.browser = default_browser(self.provider) if browser == "auto" else browser
             if self.provider == "selenium":
                 self.bridge = SeleniumDriver(
