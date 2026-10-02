@@ -39,7 +39,7 @@ def _print_group(tools: list[dict]):
 async def _list(args):
     provider = SeleniumDriver if args.provider == "selenium" else PageBridge
     kwargs = {"headless": not args.headed, "allowed_hosts": args.allow_host}
-    if args.provider == "selenium": kwargs["browser"] = args.browser
+    if args.provider == "selenium": kwargs["browser"] = "chrome" if args.browser == "auto" else args.browser
     async with provider(args.url, **kwargs) as bridge:
         raw = await bridge.discover_tools(
             timeout=args.wait, reload_on_failure=True
@@ -215,14 +215,14 @@ def main():
         )
         p.add_argument(
             "--provider",
-            choices=["playwright", "selenium"],
-            default="playwright",
+            choices=["auto", "playwright", "selenium"],
+            default="auto",
             help="Browser provider (default: playwright)",
         )
         p.add_argument(
             "--browser",
-            choices=["chrome", "firefox", "edge"],
-            default="chrome",
+            choices=["auto", "chrome", "firefox", "edge"],
+            default="auto",
             help="Browser used by the selected provider (default: chrome)",
         )
 
@@ -240,8 +240,8 @@ def main():
     p_bdd = sub.add_parser("bdd", help="Run a Gherkin feature through AnyBridge")
     p_bdd.add_argument("feature", help="Feature file path or inline Gherkin text")
     p_bdd.add_argument("--url", default=None, help="Initial page URL if the feature does not navigate")
-    p_bdd.add_argument("--provider", choices=["playwright","selenium"], default="playwright")
-    p_bdd.add_argument("--browser", choices=["chrome","firefox","edge"], default="chrome")
+    p_bdd.add_argument("--provider", choices=["auto","playwright","selenium"], default="auto")
+    p_bdd.add_argument("--browser", choices=["auto","chrome","firefox","edge"], default="auto")
     p_bdd.add_argument("--headed", action="store_true")
     p_bdd.add_argument("--allow-host", action="append", default=[])
     p_bdd.set_defaults(func=_bdd)
