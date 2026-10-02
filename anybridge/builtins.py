@@ -12,6 +12,9 @@ from .profiles import ProfileStore
 from .repositories import PreparedRepository, RepositoryManager, RepositoryStore
 from .sites import SiteStore
 from .webmcp import publish_tools
+from .tool_trust import ToolTrustRegistry
+from .content_boundary import wrap_tool_output
+from .webmcp_security import evaluate_webmcp_security
 from .workflows import WorkflowStore
 
 BUILTIN_TOOLS = [
@@ -294,6 +297,28 @@ BUILTIN_TOOLS = [
             "List the WebMCP tools registered by the current website. Use this after navigation "
             "if newly discovered site tools are not already visible to you."
         ),
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "tool_trust",
+        "description": "Inspect WebMCP tool provenance, definition drift, safety annotations, and deterministic trust state without executing the tool.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "inspect_webmcp_tool",
+        "description": "Assess one currently registered WebMCP tool for origin binding, schema/description drift, output trust, and confirmation requirements.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Raw or published WebMCP tool name"},
+                "trust": {"type": "boolean", "default": false, "description": "Record explicit caller trust for an unchanged capability"},
+            },
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "webmcp_security_evaluation",
+        "description": "Run the deterministic WebMCP adversarial regression corpus against AnyBridge quarantine, provenance, and action-confirmation boundaries. Does not execute page tools.",
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
@@ -685,6 +710,43 @@ async def call_builtin(
                 "for pages and smart_read for PDF documents."
             )
         return json.dumps(tools, indent=2, ensure_ascii=False)
+    if name == "tool_trust":
+        raw_tools = await bridge.discover_tools()
+        current = await bridge.current_site()
+        registry = getattr(bridge, "_tool_trust_registry", None)
+        if registry is None:
+            registry = ToolTrustRegistry()
+            setattr(bridge, "_tool_trust_registry", registry)
+        origin = current.get("url") or ""
+        parsed = urlsplit(origin)
+        origin = f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme and parsed.netloc else ""
+        assessments = []
+        for raw in raw_tools:
+            item = dict(raw)
+            item["origin"] = item.get("origin") or origin
+            assessments.append(registry.observe(item))
+        return json.dumps([item.to_dict() for item in assessments], indent=2, ensure_ascii=False)
+    if name == "inspect_webmcp_tool":
+        raw_tools = await bridge.discover_tools()
+        current = await bridge.current_site()
+        registry = getattr(bridge, "_tool_trust_registry", None)
+        if registry is None:
+            registry = ToolTrustRegistry()
+            setattr(bridge, "_tool_trust_registry", registry)
+        origin = current.get("url") or ""
+        parsed = urlsplit(origin)
+        origin = f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme and parsed.netloc else ""
+        requested = str(args["name"])
+        published, mapping = publish_tools(raw_tools, current.get("url"))
+        original_name = mapping.get(requested, requested)
+        match = next((dict(tool) for tool in raw_tools if str(tool.get("name") or "") == original_name), None)
+        if match is None:
+            raise ValueError(f'No WebMCP tool named "{requested}" is registered on this page.')
+        match["origin"] = match.get("origin") or origin
+        assessment = registry.observe(match, trusted=bool(args.get("trust")))
+        return json.dumps(assessment.to_dict(), indent=2, ensure_ascii=False)
+    if name == "webmcp_security_evaluation":
+        return json.dumps(evaluate_webmcp_security().to_dict(), indent=2, ensure_ascii=False)
     if name == "call_webmcp_tool":
         tool_name = args["name"]
         raw_tools = await bridge.discover_tools()
@@ -692,10 +754,43 @@ async def call_builtin(
         _, mapping = publish_tools(raw_tools, current.get("url"))
         available = {tool["name"] for tool in raw_tools}
         original_name = mapping.get(tool_name, tool_name)
-        if original_name not in available:
+        selected = next((dict(tool) for tool in raw_tools if str(tool.get("name") or "") == original_name), None)
+        if selected is None or original_name not in available:
             raise ValueError(f'No WebMCP tool named "{tool_name}" is registered on this page.')
-        result = await bridge.call_tool(original_name, args.get("arguments") or {})
-        return result if isinstance(result, str) else json.dumps(result, ensure_ascii=False)
+        registry = getattr(bridge, "_tool_trust_registry", None)
+        if registry is None:
+            registry = ToolTrustRegistry()
+            setattr(bridge, "_tool_trust_registry", registry)
+        parsed = urlsplit(current.get("url") or "")
+        selected["origin"] = selected.get("origin") or (
+            f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme and parsed.netloc else ""
+        )
+        assessment = registry.observe(selected)
+        if assessment.requires_confirmation:
+            raise PermissionError(
+                f'WebMCP tool "{tool_name}" requires confirmation/revalidation: '
+                + "; ".join(assessment.reasons)
+            )
+        try:
+            result = await bridge.call_tool(original_name, args.get("arguments") or {})
+        except Exception as exc:
+            registry.record_outcome(assessment.origin, assessment.name, False)
+            envelope = wrap_tool_output(
+                origin=assessment.origin,
+                name=assessment.name,
+                value=str(exc),
+                untrusted=True,
+            )
+            return json.dumps(envelope.to_dict(), ensure_ascii=False)
+        registry.record_outcome(assessment.origin, assessment.name, True)
+        envelope = wrap_tool_output(
+            origin=assessment.origin,
+            name=assessment.name,
+            value=result,
+            untrusted=assessment.output_untrusted,
+            high_risk=assessment.risk.value == "consequential",
+        )
+        return json.dumps(envelope.to_dict(), ensure_ascii=False)
     if name == "list_saved_sites":
         saved = sites.list()
         if not saved:

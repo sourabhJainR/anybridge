@@ -416,6 +416,65 @@ execute → checkpoint → interruption → restore state → revalidate → re-
 Playwright supports browser-context storage snapshots for cookies/local storage and related state, but persisted state can contain authentication material. AnyBridge therefore keeps checkpoint metadata separate from browser credentials; callers can explicitly use the existing profile/storage facilities when authentication restoration is required. citeturn0search0turn0search5
 
 
+### WebMCP content / prompt-injection boundary
+
+Page-controlled WebMCP metadata and results are **data, never AnyBridge/system instructions**. AnyBridge now makes that distinction structural before content is returned to an agent:
+
+- published tool definitions use a static, non-instructional description;
+- the original page description/schema/annotations are retained inside an `_anybridge.content_boundary` envelope marked `trust=untrusted` and `instruction_authority=none`;
+- tool results are wrapped in a `webmcp_tool_output` envelope;
+- normal results receive nonce-based spotlighting;
+- results marked `untrustedContentHint` or associated with higher-risk execution are Base64-encoded for stronger isolation;
+- boundary markers supplied by page content are neutralized before spotlighting;
+- failures are also returned/recorded as quarantined WebMCP data.
+
+This is deliberately a **boundary**, not a prompt-injection detector. AnyBridge does not claim that it can prove arbitrary page text is benign. The consuming agent can inspect the envelope as data while keeping system/user instructions in a separate trust class.
+
+The resulting flow is:
+
+```text
+page metadata
+    ↓
+provenance + risk assessment
+    ↓
+quarantine / structural envelope
+    ↓
+agent-visible data boundary
+    ↓
+tool execution
+    ↓
+quarantined result
+    ↓
+outcome telemetry
+```
+
+For higher-risk WebMCP output, the stronger encoding path follows current browser security guidance that recommends spotlighting untrusted content and using encoding where stronger isolation is warranted. The `untrustedContentHint` annotation is treated as a security signal, not as proof of safety.
+
+### WebMCP capability trust and tool provenance
+
+AnyBridge treats a website's WebMCP capability definition as observable, changeable input rather than implicit authorization. Each discovered tool is bound to its **origin + name + schema fingerprint + description fingerprint + safety annotations**. A bounded in-memory `ToolTrustRegistry` detects first-seen capabilities and definition drift without persisting page data or executable code.
+
+The registry tracks:
+
+- `new` — capability has not been explicitly trusted in this session.
+- `trusted` — the caller explicitly trusted the unchanged capability.
+- `changed` — schema, description, origin, or safety annotations changed.
+- `untrusted_output` — the tool declares that its output contains untrusted content.
+- `blocked` — the capability is malformed and cannot be safely identified.
+
+WebMCP annotations such as `readOnlyHint`, `consequentialHint`, and `untrustedContentHint` are incorporated into the local action policy. Consequential tools require confirmation; untrusted outputs remain an explicit trust boundary. AnyBridge does not treat a site's metadata as permission to execute a tool.
+
+Use `tool_trust` to inspect the current page's capabilities and `inspect_webmcp_tool` to assess/trust one capability. A WebMCP call is allowed only after its current definition passes the provenance policy; definition changes force revalidation rather than silently reusing prior trust.
+
+The execution boundary is:
+
+```text
+discover → fingerprint → bind to origin → compare history → assess risk
+        → explicit trust/revalidation → execute → record outcome
+```
+
+The registry is intentionally local and caller-owned. Long-lived persistence, promotion/rollback, and cross-session learning remain outside AnyBridge.
+
 ### Action risk and retry policy
 
 AnyBridge exposes a deterministic `assess_action` policy primitive before consequential browser operations. Actions are classified as read, navigation, mutation, consequential, or unknown. The policy distinguishes bounded automatic retries from state revalidation and explicit confirmation.
@@ -429,3 +488,52 @@ failure → action assessment → retry / revalidate / confirm → execute → v
 ```
 
 WebMCP itself now exposes annotations such as `readOnlyHint` and `consequentialHint` to help agents distinguish read-only from consequential tools. AnyBridge's policy therefore provides a local defensive layer rather than trusting a site's metadata alone. citeturn0search0turn0search1
+
+
+### WebMCP adversarial evaluation and quarantine enforcement
+
+AnyBridge includes a deterministic, model-free security regression harness for the WebMCP boundary. `evaluate_webmcp_security()` exercises malicious tool descriptions and names, schema poisoning, spoofed page origins, consequential annotations, untrusted tool output, delimiter injection, and same-name cross-origin capabilities.
+
+The evaluator checks the actual publication and quarantine path rather than testing a parallel mock implementation. It verifies that:
+
+- page-controlled metadata never becomes instruction authority;
+- schemas retain machine-readable structure while every object is explicitly marked as untrusted page data;
+- published provenance is derived from the active browser origin rather than a page-supplied `origin` field;
+- consequential tools remain subject to confirmation/revalidation;
+- untrusted results use Base64 quarantine;
+- spotlight boundaries reject marker injection;
+- forged authority or tampered content fingerprints are rejected;
+- identical tool names from different origins remain separate capabilities.
+
+Run the regression suite with:
+
+```python
+from anybridge.webmcp_security import evaluate_webmcp_security
+
+report = evaluate_webmcp_security()
+assert report.passed, report.to_dict()
+```
+
+The built-in `webmcp_security_evaluation` tool exposes the same deterministic report without executing any website tool. The corpus is intentionally small, stable, and model-free so it can become a regression gate as the WebMCP surface evolves.
+
+The enforcement boundary is:
+
+```text
+page-controlled input
+        ↓
+origin binding + risk assessment
+        ↓
+structural quarantine
+        ↓
+integrity/fingerprint validation
+        ↓
+agent-visible data
+        ↓
+tool execution gate
+        ↓
+quarantined output
+        ↓
+adversarial regression evaluation
+```
+
+This follows current WebMCP security guidance that calls out malicious tool manifests and contaminated outputs, recommends deterministic guardrails and spotlighting/encoding, and recommends routinely evaluating agent vulnerabilities. citeturn0view0
