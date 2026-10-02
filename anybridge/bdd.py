@@ -86,5 +86,20 @@ class BDDRunner:
                     result=matched[1](*matched[0].match(text).groups())
                     if hasattr(result,"__await__"):await result
                     executed.append(text)
-                results.append({"scenario":scenario.name,"steps":executed,"status":"passed"})
+                evidence = None
+                collector = getattr(self.bridge, "collect_evidence", None)
+                if collector is not None:
+                    evidence = await collector(
+                        action="bdd_scenario",
+                        expected={"scenario": scenario.name},
+                        assertion=f"Scenario '{scenario.name}' completed",
+                        status="passed",
+                        confidence=1.0,
+                    )
+                results.append({
+                    "scenario": scenario.name,
+                    "steps": executed,
+                    "status": "passed",
+                    "evidence": evidence,
+                })
         return {"feature":feature.name,"scenarios":results}
