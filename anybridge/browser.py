@@ -227,7 +227,17 @@ class PageBridge:
                         self._installed = True
                     try:
                         return await self._pw.chromium.launch(
-                            headless=self.headless, **browser_args
+                            headless=self.headless,
+                            args=[
+                                "--disable-background-networking",
+                                "--disable-component-update",
+                                "--disable-domain-reliability",
+                                "--disable-sync",
+                                "--disable-breakpad",
+                                "--no-first-run",
+                                "--no-default-browser-check",
+                            ],
+                            **browser_args,
                         )
                     except Error as retry_exc:
                         message = str(retry_exc)
