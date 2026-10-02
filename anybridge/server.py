@@ -14,6 +14,7 @@ from .browser import PageBridge
 from .driver import BrowserDriver
 from .selenium_driver import SeleniumDriver
 from .providers import default_browser, select_provider
+from .provider_learning import select_learned_provider
 from .builtins import BUILTIN_NAMES, BUILTIN_TOOLS, call_builtin
 from .engines import AdaptiveReader
 from .profiles import ProfileStore
@@ -172,6 +173,7 @@ class BridgeRuntime:
         allowed_hosts: tuple[str, ...] | list[str] = (),
         provider: str = "auto",
         browser: str = "auto",
+        provider_history: tuple[dict, ...] = (),
     ) -> None:
         self.initial_url = url
         self.allowed_hosts = tuple(allowed_hosts)
@@ -191,15 +193,26 @@ class BridgeRuntime:
             self.browser = getattr(bridge, "browser", browser)
             self.bridge = bridge
         else:
-            self.provider = select_provider(
-                preferred=None if provider == "auto" else provider,
-                browser=None if browser == "auto" else browser,
+            browser_requirement = None if browser == "auto" else browser
+            if provider == "playwright" and browser_requirement == "chrome":
+                browser_requirement = "chromium"
+            if provider == "auto" and provider_history:
+                self.provider = select_learned_provider(
+                    browser=browser_requirement,
+                    history=provider_history,
+                )
+            else:
+                self.provider = select_provider(
+                    preferred=None if provider == "auto" else provider,
+                    browser=browser_requirement,
+                )
+            self.browser = default_browser(self.provider) if browser == "auto" else (
+                "chromium" if self.provider == "playwright" and browser == "chrome" else browser
             )
-            self.browser = default_browser(self.provider) if browser == "auto" else browser
             if self.provider == "selenium":
                 self.bridge = SeleniumDriver(
                     url, headless=headless, allow_private_network=allow_private_network,
-                    allowed_hosts=self.allowed_hosts, browser="chrome" if browser == "auto" else browser,
+                    allowed_hosts=self.allowed_hosts, browser=self.browser,
                 )
             else:
                 self.bridge = PageBridge(
