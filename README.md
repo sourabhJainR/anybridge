@@ -373,7 +373,7 @@ from anybridge.remediation import (
 failure = correlate_failure(evidence, failure_id="failure-42", step_index=3, step="When I click Dashboard")
 actions = propose_remediations(failure)
 
-# Caller chooses/execut es an action and reports the realized result.
+# Caller chooses/executes an action and reports the realized result.
 feedback = record_remediation_outcome(
     outcome,
     provider="playwright",
