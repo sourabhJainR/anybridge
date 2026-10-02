@@ -69,3 +69,46 @@ def test_wildcard_dependency_allowlist(monkeypatch):
 
     asyncio.run(guard.assert_url("https://qa.planfuldev.com/"))
     asyncio.run(guard.assert_url("https://api.planfuldev.com/data"))
+
+
+def test_trusted_third_party_dependency_is_allowed(monkeypatch):
+    def resolve(host, port):
+        if host == "qa.internal":
+            return {"10.20.30.40"}
+        if host in {"cdn.example.com", "analytics.example.com", "telemetry.example.com", "auth.example.com"}:
+            return {"93.184.216.34"}
+        return set()
+
+    monkeypatch.setattr(NetworkGuard, "_resolve", staticmethod(resolve))
+    guard = NetworkGuard(
+        allow_private=True,
+        isolate_private=True,
+        allowed_hosts=(
+            "cdn.example.com",
+            "analytics.example.com",
+            "telemetry.example.com",
+            "auth.example.com",
+        ),
+    )
+
+    asyncio.run(guard.assert_url("https://qa.internal/"))
+    for host in ("cdn.example.com", "analytics.example.com", "telemetry.example.com", "auth.example.com"):
+        asyncio.run(guard.assert_url(f"https://{host}/"))
+
+
+def test_untrusted_third_party_dependency_remains_blocked(monkeypatch):
+    def resolve(host, port):
+        if host == "qa.internal":
+            return {"10.20.30.40"}
+        return {"93.184.216.34"}
+
+    monkeypatch.setattr(NetworkGuard, "_resolve", staticmethod(resolve))
+    guard = NetworkGuard(allow_private=True, isolate_private=True, allowed_hosts=("cdn.example.com",))
+
+    asyncio.run(guard.assert_url("https://qa.internal/"))
+    try:
+        asyncio.run(guard.assert_url("https://untrusted.example.com/"))
+    except UnsafeTargetError:
+        pass
+    else:
+        raise AssertionError("untrusted third-party dependency was allowed")
