@@ -206,7 +206,7 @@ class PageBridge:
         """
         for browser_args in ({"channel": "chromium"}, {}):
             try:
-                return await self._pw.chromium.launch(headless=self.headless, **browser_args)
+                return await self._pw.chromium.launch(\n                        headless=self.headless,\n                        args=[\n                            "--disable-background-networking",\n                            "--disable-component-update",\n                            "--disable-domain-reliability",\n                            "--disable-sync",\n                            "--disable-breakpad",\n                            "--no-first-run",\n                            "--no-default-browser-check",\n                        ],\n                        **browser_args,\n                    )
             except Error as exc:
                 message = str(exc)
                 if "playwright install" in message or "Executable doesn't exist" in message:
