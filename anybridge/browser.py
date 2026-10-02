@@ -216,6 +216,54 @@ class PageBridge:
         await locator.fill(value)
         return await self.snapshot()
 
+    async def capabilities(self) -> dict:
+        return {
+            "provider": "playwright",
+            "browser": "chromium",
+            "webmcp": True,
+            "network_interception": True,
+            "websocket_interception": hasattr(self._context, "route_web_socket") if self._context else False,
+            "screenshot": True,
+            "storage_state": True,
+            "bdd": True,
+        }
+
+    async def collect_evidence(
+        self,
+        *,
+        test_id: str | None = None,
+        execution_id: str | None = None,
+        action: str | None = None,
+        expected=None,
+        assertion: str | None = None,
+        status: str = "observed",
+        confidence: float | None = None,
+    ) -> dict:
+        from .evidence import EvidenceEnvelope
+        import time
+        started = time.perf_counter()
+        snapshot = await self.snapshot(interactive_only=False, max_chars=20000)
+        screenshot = await self.screenshot()
+        policy = await self.network_policy()
+        return EvidenceEnvelope(
+            test_id=test_id,
+            execution_id=execution_id,
+            url=self.current_url,
+            action=action,
+            expected=expected,
+            observed=snapshot,
+            assertion=assertion,
+            status=status,
+            screenshot=screenshot,
+            dom_snapshot=snapshot,
+            network_errors=list(policy.get("blocked_hosts", [])),
+            timing_ms=(time.perf_counter() - started) * 1000,
+            browser="chromium",
+            provider="playwright",
+            environment={"private_isolation": policy.get("private_site_isolation", False)},
+            confidence=confidence,
+        ).to_dict()
+
     async def network_policy(self) -> dict:
         """Return the safe local network policy and blocked dependency hosts."""
         return self._guard.policy()
