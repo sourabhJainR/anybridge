@@ -399,3 +399,18 @@ stale target → semantic candidate ranking → confidence gate → re-identify 
 ```
 
 AnyBridge never silently changes an ambiguous target and does not execute external remediation policy on the caller's behalf.
+
+
+### Crash-safe checkpoint and resume
+
+AnyBridge can create an explicit execution checkpoint and later evaluate whether the current browser state is safe to resume from it. The checkpoint store uses an atomic local JSON replacement, so an interrupted write does not leave a partially written checkpoint.
+
+Resume is deliberately conservative: a saved checkpoint does not authorize replaying a side effect. `resume_checkpoint` compares the current URL, target availability, and recovery confidence. A changed URL, missing target, or insufficient confidence routes to revalidation/re-identification rather than direct replay.
+
+This builds on the local execution journal and self-healing target resolver:
+
+```text
+execute → checkpoint → interruption → restore state → revalidate → re-identify if needed → resume → verify
+```
+
+Playwright supports browser-context storage snapshots for cookies/local storage and related state, but persisted state can contain authentication material. AnyBridge therefore keeps checkpoint metadata separate from browser credentials; callers can explicitly use the existing profile/storage facilities when authentication restoration is required. citeturn0search0turn0search5
