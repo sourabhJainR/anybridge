@@ -236,3 +236,11 @@ top of the BDDRunner without coupling them to Playwright or Selenium.
 
 The optional `anybridge[bdd]` extra installs pytest-bdd for projects that also want
 pytest-native BDD. AnyBridge's runtime BDD executor does not require pytest.
+
+### Automatic provider selection
+
+The MCP runtime and CLI can use `--provider auto` and `--browser auto`. The selection
+layer evaluates requested capabilities and browser compatibility while keeping
+Playwright as the deterministic default when no stronger preference is supplied.
+Provider choice remains explicit and inspectable, so HWS can later feed execution
+history, evidence quality, latency, or failure rates into the same decision point.
