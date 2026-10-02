@@ -90,7 +90,7 @@ def recommend_decomposition(
 
     cap = max(1, max_parallelism or independent_work)
     preconditions: list[str] = []
-    reasons: list[str] = ["recommendation is advisory; HWS retains execution authority"]
+    reasons: list[str] = [recommendation is advisory; the caller retains execution authority]
 
     if destructive or risk == "high":
         strategy = "stage_with_preconditions"
