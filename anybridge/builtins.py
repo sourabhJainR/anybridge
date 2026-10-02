@@ -773,7 +773,7 @@ async def call_builtin(
                 value=str(exc),
                 untrusted=True,
             )
-            raise RuntimeError(json.dumps(envelope.to_dict(), ensure_ascii=False)) from exc
+            return json.dumps(envelope.to_dict(), ensure_ascii=False)
         registry.record_outcome(assessment.origin, assessment.name, True)
         envelope = wrap_tool_output(
             origin=assessment.origin,
