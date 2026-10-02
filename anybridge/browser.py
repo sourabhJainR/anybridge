@@ -145,7 +145,7 @@ class PageBridge:
         self.headless = headless
         self.allow_private_network = allow_private_network
         self.storage_state = storage_state
-        self._guard = NetworkGuard(allow_private=allow_private_network)
+        self._guard = NetworkGuard(allow_private=allow_private_network, isolate_private=True)
         self._pw = None
         self._browser = None
         self._context = None
@@ -206,7 +206,19 @@ class PageBridge:
         """
         for browser_args in ({"channel": "chromium"}, {}):
             try:
-                return await self._pw.chromium.launch(headless=self.headless, **browser_args)
+                return await self._pw.chromium.launch(
+                    headless=self.headless,
+                    args=[
+                        "--disable-background-networking",
+                        "--disable-component-update",
+                        "--disable-domain-reliability",
+                        "--disable-sync",
+                        "--disable-breakpad",
+                        "--no-first-run",
+                        "--no-default-browser-check",
+                    ],
+                    **browser_args,
+                )
             except Error as exc:
                 message = str(exc)
                 if "playwright install" in message or "Executable doesn't exist" in message:
@@ -215,7 +227,17 @@ class PageBridge:
                         self._installed = True
                     try:
                         return await self._pw.chromium.launch(
-                            headless=self.headless, **browser_args
+                            headless=self.headless,
+                            args=[
+                                "--disable-background-networking",
+                                "--disable-component-update",
+                                "--disable-domain-reliability",
+                                "--disable-sync",
+                                "--disable-breakpad",
+                                "--no-first-run",
+                                "--no-default-browser-check",
+                            ],
+                            **browser_args,
                         )
                     except Error as retry_exc:
                         message = str(retry_exc)
