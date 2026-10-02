@@ -253,6 +253,53 @@ class SeleniumDriver:
         await self._run(element.send_keys, value)
         return await self.snapshot()
 
+    async def capabilities(self):
+        return {
+            "provider": "selenium",
+            "browser": self.browser,
+            "webmcp": True,
+            "network_interception": getattr(self, "_bidi_callback_id", None) is not None,
+            "websocket_interception": False,
+            "screenshot": True,
+            "storage_state": True,
+            "bdd": True,
+        }
+
+    async def collect_evidence(
+        self,
+        *,
+        test_id=None,
+        execution_id=None,
+        action=None,
+        expected=None,
+        assertion=None,
+        status="observed",
+        confidence=None,
+    ):
+        from .evidence import EvidenceEnvelope
+        started = time.perf_counter()
+        snapshot = await self.snapshot(interactive_only=False, max_chars=20000)
+        screenshot = await self.screenshot()
+        policy = await self.network_policy()
+        return EvidenceEnvelope(
+            test_id=test_id,
+            execution_id=execution_id,
+            url=self.current_url,
+            action=action,
+            expected=expected,
+            observed=snapshot,
+            assertion=assertion,
+            status=status,
+            screenshot=screenshot,
+            dom_snapshot=snapshot,
+            network_errors=list(policy.get("blocked_hosts", [])),
+            timing_ms=(time.perf_counter() - started) * 1000,
+            browser=self.browser,
+            provider="selenium",
+            environment={"private_isolation": policy.get("private_site_isolation", False)},
+            confidence=confidence,
+        ).to_dict()
+
     async def network_policy(self):return self._guard.policy()
     async def trust_host(self,host):self._guard.allow_hosts((host,));return self._guard.policy()
     async def revoke_host(self,host):return self._guard.revoke_host(host)
