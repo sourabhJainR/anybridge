@@ -1,7 +1,7 @@
-"""Evidence-driven provider routing primitives for AnyBridge and HWS.
+"""Evidence-driven provider routing primitives for AnyBridge and caller.
 
 The router consumes historical observations supplied by the caller. It owns no
-persistent storage, so HWS remains the source of truth for long-lived learning.
+persistent storage, so caller remains the source of truth for long-lived learning.
 """
 
 from __future__ import annotations
