@@ -133,6 +133,23 @@ class SeleniumDriver:
         script="return window.__anybridge__.callTool(arguments[0],arguments[1]);"
         return await self._run(self._driver.execute_async_script,"const done=arguments[arguments.length-1]; Promise.resolve(window.__anybridge__.callTool(arguments[0],arguments[1])).then(done);",name,arguments)
 
+    async def click_text(self, text):
+        script = "return [...document.querySelectorAll('button,a,input,[role=button]')].find(e=>(e.innerText||e.value||e.getAttribute('aria-label')||'').trim().toLowerCase()===arguments[0].toLowerCase());"
+        element = await self._run(self._driver.execute_script, script, text)
+        if element is None:
+            raise AssertionError(f"Element '{text}' was not found.")
+        await self._run(element.click)
+        return await self.snapshot()
+
+    async def fill_label(self, label, value):
+        script = "return [...document.querySelectorAll('input,textarea,[contenteditable=true]')].find(e=>(e.name||e.placeholder||e.getAttribute('aria-label')||'').trim().toLowerCase()===arguments[0].toLowerCase());"
+        element = await self._run(self._driver.execute_script, script, label)
+        if element is None:
+            raise AssertionError(f"Field '{label}' was not found.")
+        await self._run(element.clear)
+        await self._run(element.send_keys, value)
+        return await self.snapshot()
+
     async def network_policy(self):return self._guard.policy()
     async def trust_host(self,host):self._guard.allow_hosts((host,));return self._guard.policy()
     async def revoke_host(self,host):return self._guard.revoke_host(host)
