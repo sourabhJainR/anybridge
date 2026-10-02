@@ -2,7 +2,7 @@
 
 This module turns execution telemetry into a provider/browser plan plus
 verification, concurrency, retry and escalation decisions. It deliberately
-does not execute work or persist learning; HWS owns those responsibilities.
+does not execute work or persist learning; caller owns those responsibilities.
 """
 from __future__ import annotations
 
@@ -128,7 +128,7 @@ def decide_execution(
         verification = "standard"
 
     # Parallelize only independent, non-destructive work. Risky browser flows
-    # remain serial unless HWS explicitly decomposes them into safe units.
+    # remain serial unless caller explicitly decomposes them into safe units.
     if independent_work > 1 and not destructive and risk != "high":
         execution_mode = "parallel"
     else:
