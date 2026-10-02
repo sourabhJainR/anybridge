@@ -206,7 +206,7 @@ but never overrides destructive/high-risk serial execution.
 
 The function also returns safe counterfactual plans such as serial instead of
 parallel execution, deeper verification, or alternate-provider escalation. These
-are alternatives for HWS to evaluate against realized outcomes; AnyBridge does not
+are alternatives for the caller to evaluate against realized outcomes; AnyBridge does not
 execute them or persist the learning decision.
 
 ```python
@@ -298,12 +298,12 @@ pytest-native BDD. AnyBridge's runtime BDD executor does not require pytest.
 The MCP runtime and CLI can use `--provider auto` and `--browser auto`. The selection
 layer evaluates requested capabilities and browser compatibility while keeping
 Playwright as the deterministic default when no stronger preference is supplied.
-Provider choice remains explicit and inspectable, so HWS can later feed execution
+Provider choice remains explicit and inspectable, so an external orchestrator can later feed execution
 history, evidence quality, latency, or failure rates into the same decision point.
 
 ### Evidence-driven provider routing
 
-HWS can optionally supply prior execution observations to the MCP runtime. The
+Callers can optionally supply prior execution observations to the MCP runtime. The
 learning layer scores compatible providers using observed success rate,
 evidence confidence, and bounded latency, while capability and browser
 constraints remain hard gates:
@@ -317,7 +317,7 @@ constraints remain hard gates:
     )
 
 The history is caller-owned and is not persisted by AnyBridge. This keeps
-long-lived learning, replay corpora, and promotion/rollback decisions in HWS
+long-lived learning, replay corpora, and promotion/rollback decisions outside AnyBridge
 while AnyBridge remains a browser execution component. Malformed observations
 are ignored, and a provider can never be selected if it fails the requested
 capability, browser, or runtime-availability constraints.
@@ -341,7 +341,7 @@ decision = decide_execution(
 )
 ```
 
-The decision object is deliberately declarative. HWS remains responsible for
+The decision object is deliberately declarative. the caller remains responsible for
 executing the plan, collecting the resulting Evidence Envelope, and feeding
 verified outcomes back into the next decision. This creates a closed loop:
 **observe -> decide -> execute -> verify -> learn -> decide**.
