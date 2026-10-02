@@ -488,3 +488,52 @@ failure → action assessment → retry / revalidate / confirm → execute → v
 ```
 
 WebMCP itself now exposes annotations such as `readOnlyHint` and `consequentialHint` to help agents distinguish read-only from consequential tools. AnyBridge's policy therefore provides a local defensive layer rather than trusting a site's metadata alone. citeturn0search0turn0search1
+
+
+### WebMCP adversarial evaluation and quarantine enforcement
+
+AnyBridge includes a deterministic, model-free security regression harness for the WebMCP boundary. `evaluate_webmcp_security()` exercises malicious tool descriptions and names, schema poisoning, spoofed page origins, consequential annotations, untrusted tool output, delimiter injection, and same-name cross-origin capabilities.
+
+The evaluator checks the actual publication and quarantine path rather than testing a parallel mock implementation. It verifies that:
+
+- page-controlled metadata never becomes instruction authority;
+- schemas retain machine-readable structure while every object is explicitly marked as untrusted page data;
+- published provenance is derived from the active browser origin rather than a page-supplied `origin` field;
+- consequential tools remain subject to confirmation/revalidation;
+- untrusted results use Base64 quarantine;
+- spotlight boundaries reject marker injection;
+- forged authority or tampered content fingerprints are rejected;
+- identical tool names from different origins remain separate capabilities.
+
+Run the regression suite with:
+
+```python
+from anybridge.webmcp_security import evaluate_webmcp_security
+
+report = evaluate_webmcp_security()
+assert report.passed, report.to_dict()
+```
+
+The built-in `webmcp_security_evaluation` tool exposes the same deterministic report without executing any website tool. The corpus is intentionally small, stable, and model-free so it can become a regression gate as the WebMCP surface evolves.
+
+The enforcement boundary is:
+
+```text
+page-controlled input
+        ↓
+origin binding + risk assessment
+        ↓
+structural quarantine
+        ↓
+integrity/fingerprint validation
+        ↓
+agent-visible data
+        ↓
+tool execution gate
+        ↓
+quarantined output
+        ↓
+adversarial regression evaluation
+```
+
+This follows current WebMCP security guidance that calls out malicious tool manifests and contaminated outputs, recommends deterministic guardrails and spotlighting/encoding, and recommends routinely evaluating agent vulnerabilities. citeturn0view0
