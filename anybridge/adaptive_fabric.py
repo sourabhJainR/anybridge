@@ -9,6 +9,7 @@ from dataclasses import dataclass, replace
 from typing import Iterable
 
 from .execution_fabric import ExecutionDecision, ExecutionObservation, decide_execution
+from .provider_learning import rank_providers
 
 
 @dataclass(frozen=True)
@@ -141,7 +142,7 @@ def decide_execution_adaptive(
         )
 
     if primary.escalation != "alternate_provider":
-        candidates = __import__("anybridge.provider_learning", fromlist=["rank_providers"]).rank_providers(
+        candidates = rank_providers(
             required=required,
             browser=browser,
             available=available,
