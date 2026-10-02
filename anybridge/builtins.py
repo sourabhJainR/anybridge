@@ -226,6 +226,19 @@ BUILTIN_TOOLS = [
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
+        "name": "revoke_network_host",
+        "description": (
+            "Revoke an explicitly trusted dependency hostname for the current browser session. "
+            "The private-site origin itself cannot be revoked until the session ends."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "host": {"type": "string", "description": "Hostname previously trusted for this session"}
+            },
+            "required": ["host"],
+        },
+    },
         "name": "trust_network_host",
         "description": "Explicitly trust one blocked dependency hostname for the current browser session. Use only after the user approves that host.",
         "inputSchema": {
@@ -574,6 +587,9 @@ async def call_builtin(
         return await bridge.reset()
     if name == "network_policy":
         return json.dumps(await bridge.network_policy(), indent=2, ensure_ascii=False)
+    if name == "revoke_network_host":
+        return json.dumps(await bridge.revoke_host(str(args.get("host") or "")), indent=2, ensure_ascii=False)
+
     if name == "trust_network_host":
         return json.dumps(await bridge.trust_host(args["host"]), indent=2, ensure_ascii=False)
     if name == "current_site":
