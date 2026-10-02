@@ -121,6 +121,23 @@ private-network targets are blocked including across redirects, saved profiles
 are encrypted and scoped to one origin, and recorded workflows never store the
 values that were typed into them.
 
+### Private-site dependencies
+
+Strict private-site isolation does not disable the browser. The site's own
+origin remains available, while unrelated hosts are blocked. If an internal
+application uses additional API, authentication, asset, or service hosts,
+explicitly allow those hosts with `ANYBRIDGE_PRIVATE_ALLOWED_HOSTS`.
+
+For example, a Planful development environment that intentionally uses
+multiple `*.planfuldev.com` hosts can run with:
+
+```bash
+ANYBRIDGE_PRIVATE_ALLOWED_HOSTS="*.planfuldev.com" anybridge serve
+```
+
+Only use a wildcard for a domain you control/trust. Do not add public
+analytics, advertising, telemetry, or unknown third-party hosts if the goal
+is to keep private-site data inside the private boundary.
 ## Limits
 
 Aggressive anti-bot walls can still refuse a headless browser. When that
