@@ -101,6 +101,8 @@ async def _serve(args):
         wait=args.wait,
         builtins=not args.no_builtins,
         allowed_hosts=args.allow_host,
+        provider=args.provider,
+        browser=args.browser,
     )
 
 
