@@ -37,7 +37,6 @@ _NO_BROWSER_NEEDED = {
     "remove_profile",
     "list_workflows",
     "remove_workflow",
-    "run_bdd",
 }
 _PAGE_MAY_CHANGE = {
     "navigate",
