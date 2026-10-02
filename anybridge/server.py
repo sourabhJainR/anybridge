@@ -169,8 +169,8 @@ class BridgeRuntime:
         bridge: PageBridge | None = None,
         allow_private_network: bool = True,
         allowed_hosts: tuple[str, ...] | list[str] = (),
-        provider: str = "playwright",
-        browser: str = "chrome",
+        provider: str = "auto",
+        browser: str = "auto",
     ) -> None:
         self.initial_url = url
         self.allowed_hosts = tuple(allowed_hosts)
