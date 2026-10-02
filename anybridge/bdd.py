@@ -50,33 +50,25 @@ class BDDRunner:
         self._register_defaults()
     def register(self,pattern,handler):self.steps[re.compile(pattern,re.I)]=handler
     def _register_defaults(self):
-        self.register(r"open (?:the )?(?:page|url) (.+)",lambda u:self.bridge.navigate(u))
-        self.register(r"navigate to (.+)",lambda u:self.bridge.navigate(u))
-        self.register(r"I click (?:on )?(?:the )?(.+)",self._click_text)
-        self.register(r"I fill (?:in )?(?:the )?(.+) with (.+)",self._fill_text)
-        self.register(r"I should see (.+)",self._assert_text)
-        self.register(r"the url should contain (.+)",self._assert_url)
-        self.register(r"I wait for (?:the )?text (.+)",lambda t:self.bridge.wait_for(text=t.strip('"')))
-    async def _click_text(self,target):
-        return await self._find_and_click(target)
-    async def _fill_text(self,target,value):
-        return await self._find_and_fill(target,value)
-    async def _find_and_click(self,target):
-        script="return [...document.querySelectorAll('button,a,input,[role=button]')].find(e=>(e.innerText||e.value||e.getAttribute('aria-label')||'').trim().toLowerCase()===arguments[0].toLowerCase());"
-        el=await self.bridge._run(self.bridge._driver.execute_script,script,target) if hasattr(self.bridge,"_run") else None
-        if el is None:raise AssertionError(f"Element '{target}' was not found.")
-        await self.bridge._run(el.click);return await self.bridge.snapshot()
-    async def _find_and_fill(self,target,value):
-        script="return [...document.querySelectorAll('input,textarea,[contenteditable=true]')].find(e=>(e.name||e.placeholder||e.getAttribute('aria-label')||'').trim().toLowerCase()===arguments[0].toLowerCase());"
-        if not hasattr(self.bridge,"_run"):raise RuntimeError("Provider does not expose a native text lookup.")
-        el=await self.bridge._run(self.bridge._driver.execute_script,script,target)
-        if el is None:raise AssertionError(f"Field '{target}' was not found.")
-        await self.bridge._run(el.clear);await self.bridge._run(el.send_keys,value);return await self.bridge.snapshot()
-    async def _assert_text(self,text):
-        body=await self.bridge.snapshot(interactive_only=False,max_chars=100000)
-        assert text.strip('"') in body,f"Expected text not found: {text}"
-    async def _assert_url(self,text):
-        assert text.strip('"') in self.bridge.current_url,f"Expected URL fragment not found: {text}"
+        self.register(r"open (?:the )?(?:page|url) (.+)", lambda u: self.bridge.navigate(u))
+        self.register(r"navigate to (.+)", lambda u: self.bridge.navigate(u))
+        self.register(r"I click (?:on )?(?:the )?(.+)", lambda target: self.bridge.click_text(target))
+        self.register(r"I fill (?:in )?(?:the )?(.+) with (.+)", lambda label,value: self.bridge.fill_label(label,value))
+        self.register(r"I should see (.+)", self._assert_text)
+        self.register(r"the url should contain (.+)", self._assert_url)
+        self.register(r"I wait for (?:the )?text (.+)", lambda t: self.bridge.wait_for(text=t.strip('"')))
+
+    async def _assert_text(self, text):
+        body = await self.bridge.snapshot(interactive_only=False, max_chars=100000)
+        expected = text.strip('"')
+        if expected not in body:
+            raise AssertionError(f"Expected text not found: {expected}")
+
+    async def _assert_url(self, text):
+        expected = text.strip('"')
+        if expected not in self.bridge.current_url:
+            raise AssertionError(f"Expected URL fragment not found: {expected}")
+
     async def run(self,feature:Feature,variables=None):
         variables=variables or {};results=[]
         for scenario in feature.scenarios:
