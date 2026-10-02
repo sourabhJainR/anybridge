@@ -279,6 +279,8 @@ def main():
     p_remote.add_argument("--allowed-host", action="append", default=[])
     p_remote.add_argument("--allowed-origin", action="append", default=[])
     p_remote.add_argument("--idle-timeout", type=float, default=900)
+    p_remote.add_argument("--provider", choices=["playwright","selenium"], default="playwright")
+    p_remote.add_argument("--browser", choices=["chrome","firefox","edge"], default="chrome")
 
     args = parser.parse_args()
     if args.command is None:
