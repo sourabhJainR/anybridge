@@ -43,6 +43,10 @@ class WebMCPBoundaryTests(unittest.TestCase):
         published = tools[0]
         self.assertEqual(published["origin"], "https://example.com")
         self.assertEqual(published["inputSchema"]["type"], "object")
+        self.assertEqual(
+            published["inputSchema"]["x-anybridge-content-boundary"]["instruction_authority"],
+            "none",
+        )
         self.assertEqual(mapping[published["name"]], "lookup")
 
 
