@@ -221,6 +221,20 @@ BUILTIN_TOOLS = [
         "inputSchema": {"type": "object", "properties": {},},
     },
     {
+        "name": "network_policy",
+        "description": "Show private-site isolation, trusted hosts, and third-party dependency hosts blocked during this session. No network data is sent.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "trust_network_host",
+        "description": "Explicitly trust one blocked dependency hostname for the current browser session. Use only after the user approves that host.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"host": {"type": "string", "description": "Hostname to trust, e.g. cdn.example.com"}},
+            "required": ["host"],
+        },
+    },
+    {
         "name": "current_site",
         "description": "Show the current browser URL, page title, and number of discovered WebMCP tools.",
         "inputSchema": {"type": "object", "properties": {}},
@@ -558,6 +572,10 @@ async def call_builtin(
         return await bridge.screenshot(full_page=bool(args.get("full_page")))
     if name == "reset_session":
         return await bridge.reset()
+    if name == "network_policy":
+        return json.dumps(await bridge.network_policy(), indent=2, ensure_ascii=False)
+    if name == "trust_network_host":
+        return json.dumps(await bridge.trust_host(args["host"]), indent=2, ensure_ascii=False)
     if name == "current_site":
         return json.dumps(await bridge.current_site(), indent=2, ensure_ascii=False)
     if name == "list_webmcp_tools":
