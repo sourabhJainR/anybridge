@@ -27,7 +27,6 @@ def tool_signature(tool: dict) -> str:
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:16]
 
 
-
 def _quarantine_schema(value: object) -> object:
     """Preserve schema semantics while labeling page-provided descriptive text as data."""
     if isinstance(value, dict):
@@ -45,6 +44,7 @@ def _quarantine_schema(value: object) -> object:
     if isinstance(value, list):
         return [_quarantine_schema(item) for item in value]
     return value
+
 
 def publish_tools(tools: list[dict], page_url: str | None) -> tuple[list[dict], dict[str, str]]:
     """Namespace untrusted site tools and return public-name to raw-name mapping."""
@@ -104,7 +104,10 @@ def publish_tools(tools: list[dict], page_url: str | None) -> tuple[list[dict], 
                 ),
                 "inputSchema": _quarantine_schema(schema),
                 "annotations": deepcopy(annotations),
-                "origin": raw.get("origin") or origin,
+                # Never trust a page-supplied origin field. Provenance is derived
+                # from the browser's current page URL and is the authority for
+                # registry identity and cross-origin isolation.
+                "origin": origin,
                 "_anybridge": {
                     "origin": origin,
                     "originalName": original,
