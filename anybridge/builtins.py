@@ -14,6 +14,7 @@ from .sites import SiteStore
 from .webmcp import publish_tools
 from .tool_trust import ToolTrustRegistry
 from .content_boundary import wrap_tool_output
+from .webmcp_security import evaluate_webmcp_security
 from .workflows import WorkflowStore
 
 BUILTIN_TOOLS = [
