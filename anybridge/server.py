@@ -14,6 +14,7 @@ from .browser import PageBridge
 from .driver import BrowserDriver
 from .selenium_driver import SeleniumDriver
 from .providers import default_browser, select_provider
+from .provider_learning import select_learned_provider
 from .builtins import BUILTIN_NAMES, BUILTIN_TOOLS, call_builtin
 from .engines import AdaptiveReader
 from .profiles import ProfileStore
@@ -193,6 +194,8 @@ class BridgeRuntime:
             self.bridge = bridge
         else:
             browser_requirement = None if browser == "auto" else browser
+            if provider == "playwright" and browser_requirement == "chrome":
+                browser_requirement = "chromium"
             if provider == "auto" and provider_history:
                 self.provider = select_learned_provider(
                     browser=browser_requirement,
@@ -203,11 +206,13 @@ class BridgeRuntime:
                     preferred=None if provider == "auto" else provider,
                     browser=browser_requirement,
                 )
-            self.browser = default_browser(self.provider) if browser == "auto" else browser
+            self.browser = default_browser(self.provider) if browser == "auto" else (
+                "chromium" if self.provider == "playwright" and browser == "chrome" else browser
+            )
             if self.provider == "selenium":
                 self.bridge = SeleniumDriver(
                     url, headless=headless, allow_private_network=allow_private_network,
-                    allowed_hosts=self.allowed_hosts, browser="chrome" if browser == "auto" else browser,
+                    allowed_hosts=self.allowed_hosts, browser=self.browser,
                 )
             else:
                 self.bridge = PageBridge(
