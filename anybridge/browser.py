@@ -145,7 +145,7 @@ class PageBridge:
         self.headless = headless
         self.allow_private_network = allow_private_network
         self.storage_state = storage_state
-        self._guard = NetworkGuard(allow_private=allow_private_network)
+        self._guard = NetworkGuard(allow_private=allow_private_network, isolate_private=True)
         self._pw = None
         self._browser = None
         self._context = None
