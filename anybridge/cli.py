@@ -36,7 +36,7 @@ def _print_group(tools: list[dict]):
 
 
 async def _list(args):
-    async with PageBridge(args.url, headless=not args.headed) as bridge:
+    async with PageBridge(args.url, headless=not args.headed, allowed_hosts=args.allow_host) as bridge:
         raw = await bridge.discover_tools(
             timeout=args.wait, reload_on_failure=True
         )
@@ -56,6 +56,7 @@ async def _call(args):
             initial_url,
             headless=not args.headed,
             wait=args.wait,
+            allowed_hosts=args.allow_host,
         )
         if args.tool in {"navigate", "smart_read"}:
             tool_args.setdefault("url", args.url)
@@ -64,7 +65,7 @@ async def _call(args):
         finally:
             await runtime.close()
         return
-    async with PageBridge(args.url, headless=not args.headed) as bridge:
+    async with PageBridge(args.url, headless=not args.headed, allowed_hosts=args.allow_host) as bridge:
         raw = await bridge.discover_tools(
             timeout=args.wait, reload_on_failure=True
         )
@@ -84,6 +85,7 @@ async def _serve(args):
         headless=not args.headed,
         wait=args.wait,
         builtins=not args.no_builtins,
+        allowed_hosts=args.allow_host,
     )
 
 
@@ -175,6 +177,16 @@ def main():
             "--no-builtins",
             action="store_true",
             help="Expose only the site's own WebMCP tools",
+        )
+        p.add_argument(
+            "--allow-host",
+            action="append",
+            default=[],
+            metavar="HOST",
+            help=(
+                "Explicitly trust a private-site dependency host (repeatable; exact host or *.domain). "
+                "Use only for third-party CDN, analytics, telemetry, or authentication hosts you trust."
+            ),
         )
 
     p_list = sub.add_parser("list", help="List the tools available on a page")
