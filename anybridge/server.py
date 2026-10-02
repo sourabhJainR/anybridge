@@ -276,12 +276,12 @@ class BridgeRuntime:
         await self.bridge.close()
 
 
-def create_server(runtime: BridgeRuntime | None = None) -> Server:
+def create_server(runtime: BridgeRuntime | None = None, *, provider: str = "playwright", browser: str = "chrome") -> Server:
     """Build the low-level MCP server around a runtime."""
 
     @asynccontextmanager
     async def remote_lifespan(server):
-        session_runtime = BridgeRuntime(allow_private_network=False, provider="playwright")
+        session_runtime = BridgeRuntime(allow_private_network=False, provider=provider, browser=browser)
         try:
             yield session_runtime
         finally:
