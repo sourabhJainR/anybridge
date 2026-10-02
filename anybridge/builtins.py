@@ -317,6 +317,11 @@ BUILTIN_TOOLS = [
         },
     },
     {
+        "name": "webmcp_security_evaluation",
+        "description": "Run the deterministic WebMCP adversarial regression corpus against AnyBridge quarantine, provenance, and action-confirmation boundaries. Does not execute page tools.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
         "name": "call_webmcp_tool",
         "description": (
             "Call a WebMCP tool registered by the current website by name. Prefer the site's "
@@ -740,6 +745,8 @@ async def call_builtin(
         match["origin"] = match.get("origin") or origin
         assessment = registry.observe(match, trusted=bool(args.get("trust")))
         return json.dumps(assessment.to_dict(), indent=2, ensure_ascii=False)
+    if name == "webmcp_security_evaluation":
+        return json.dumps(evaluate_webmcp_security().to_dict(), indent=2, ensure_ascii=False)
     if name == "call_webmcp_tool":
         tool_name = args["name"]
         raw_tools = await bridge.discover_tools()
