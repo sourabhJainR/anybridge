@@ -141,13 +141,30 @@ def decide_execution_adaptive(
         )
 
     if primary.escalation != "alternate_provider":
-        alternatives.append(
-            CounterfactualPlan(
-                name="alternate_provider",
-                decision=replace(primary, escalation="alternate_provider", max_retries=max(1, primary.max_retries)),
-                rationale="counterfactual provider fallback after execution failure",
-            )
+        candidates = __import__("anybridge.provider_learning", fromlist=["rank_providers"]).rank_providers(
+            required=required,
+            browser=browser,
+            available=available,
+            history=(),
+            preferred=preferred_provider,
         )
+        alternate = next((c for c in candidates if c.provider != primary.provider), None)
+        if alternate is not None:
+            alternatives.append(
+                CounterfactualPlan(
+                    name="alternate_provider",
+                    decision=replace(
+                        primary,
+                        provider=alternate.provider,
+                        browser=("chrome" if alternate.provider == "selenium" else "chromium")
+                        if browser in (None, "auto")
+                        else browser,
+                        escalation="alternate_provider",
+                        max_retries=max(1, primary.max_retries),
+                    ),
+                    rationale="counterfactual compatible provider fallback after execution failure",
+                )
+            )
 
     return primary, tuple(alternatives)
 
