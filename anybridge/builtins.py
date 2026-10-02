@@ -762,7 +762,11 @@ async def call_builtin(
                 f'WebMCP tool "{tool_name}" requires confirmation/revalidation: '
                 + "; ".join(assessment.reasons)
             )
-        result = await bridge.call_tool(original_name, args.get("arguments") or {})
+        try:
+            result = await bridge.call_tool(original_name, args.get("arguments") or {})
+        except Exception:
+            registry.record_outcome(assessment.origin, assessment.name, False)
+            raise
         registry.record_outcome(assessment.origin, assessment.name, True)
         return result if isinstance(result, str) else json.dumps(result, ensure_ascii=False)
     if name == "list_saved_sites":
