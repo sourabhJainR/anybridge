@@ -37,14 +37,12 @@ class NetworkGuard:
         self.isolate_private = isolate_private
         configured_hosts = os.getenv("ANYBRIDGE_PRIVATE_ALLOWED_HOSTS", "")
         configured = tuple(item.strip() for item in configured_hosts.split(",") if item.strip())
-        self._approved_hosts: set[str] = {
-            str(host).rstrip(".").casefold()
-            for host in (*allowed_hosts, *configured)
-            if str(host).strip()
-        }
+        self._approved_hosts: set[str] = set()
+        self._explicit_hosts: set[str] = set()
         self._private_hosts: set[str] = set()
         self._private_isolation = False
         self._blocked_hosts: dict[str, dict] = {}
+        self._configure_explicit_hosts((*allowed_hosts, *configured))
 
     @property
     def private_isolation(self) -> bool:
@@ -53,6 +51,20 @@ class NetworkGuard:
     @property
     def approved_hosts(self) -> tuple[str, ...]:
         return tuple(sorted(self._approved_hosts))
+
+    @staticmethod
+    def _normalize_allowed_host(host: str) -> str:
+        value = str(host).strip().rstrip(".").casefold()
+        if not value or "/" in value or ":" in value or any(ch.isspace() for ch in value):
+            raise ValueError("Allowed network entries must be hostnames, not URLs, paths, ports, or whitespace.")
+        if value == "*" or (value.startswith("*.") and len(value) <= 2):
+            raise ValueError("Wildcard allowlist entries must include a domain.")
+        return value
+
+    def _configure_explicit_hosts(self, hosts) -> None:
+        normalized = {self._normalize_allowed_host(host) for host in hosts if str(host).strip()}
+        self._explicit_hosts.update(normalized)
+        self._approved_hosts.update(normalized)
 
     def _host_is_approved(self, host: str) -> bool:
         if host in self._approved_hosts:
@@ -101,7 +113,8 @@ class NetworkGuard:
             raise UnsafeTargetError(
                 f'Private-site isolation blocked network access to public host "{host}".'
             )
-        self._approved_hosts.add(host)
+        # A public host observed before private-site isolation must not become
+        # implicitly trusted for later private-site traffic.
         return target
 
     def _validate_public(self, host: str, port: int | None) -> None:
@@ -143,8 +156,8 @@ class NetworkGuard:
             if host:
                 self._blocked_hosts[host] = {
                     "host": host,
-                    "url": urlsplit(url)._replace(query="", fragment="").geturl(),
-                    "reason": str(error),
+                    "scheme": scheme or "unknown",
+                    "reason": "network_policy_block",
                 }
             await route.abort("blockedbyclient")
             return
@@ -156,11 +169,19 @@ class NetworkGuard:
 
     def allow_hosts(self, hosts: tuple[str, ...] | list[str]) -> None:
         """Add explicitly trusted dependency hosts for this browser session."""
-        self._approved_hosts.update(
-            str(host).rstrip(".").casefold() for host in hosts if str(host).strip()
-        )
+        self._configure_explicit_hosts(hosts)
         for host in hosts:
-            self._blocked_hosts.pop(str(host).rstrip(".").casefold(), None)
+            normalized = self._normalize_allowed_host(host)
+            self._blocked_hosts.pop(normalized, None)
+
+    def revoke_host(self, host: str) -> dict:
+        """Revoke an explicitly trusted host for this browser session."""
+        normalized = self._normalize_allowed_host(host)
+        if normalized in self._private_hosts:
+            raise ValueError("The active private-site origin cannot be revoked during its session.")
+        self._explicit_hosts.discard(normalized)
+        self._approved_hosts.discard(normalized)
+        return self.policy()
 
     def policy(self) -> dict:
         """Return a safe, non-secret description of the active network policy."""
@@ -170,4 +191,6 @@ class NetworkGuard:
             "approved_hosts": list(self.approved_hosts),
             "private_hosts": sorted(self._private_hosts),
             "blocked_hosts": list(self.blocked_hosts),
+            "explicit_hosts": sorted(self._explicit_hosts),
+            "approval_required": bool(self._blocked_hosts),
         }

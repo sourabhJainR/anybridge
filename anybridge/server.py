@@ -83,6 +83,8 @@ _DESTRUCTIVE = {
     "remove_profile",
     "run_workflow",
     "remove_workflow",
+    "trust_network_host",
+    "revoke_network_host",
 }
 _LOCAL_ONLY = {
     "list_saved_sites",
@@ -176,7 +178,8 @@ class BridgeRuntime:
         self.profiles = profiles or ProfileStore()
         self.workflows = workflows or WorkflowStore()
         self.adaptive = adaptive or AdaptiveReader(
-            allow_private_network=allow_private_network
+            allow_private_network=allow_private_network,
+            allowed_hosts=self.allowed_hosts,
         )
         self.bridge = bridge or PageBridge(
             url,

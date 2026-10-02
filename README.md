@@ -128,8 +128,9 @@ the request and records the hostname locally. Agents can call `network_policy`
 to inspect the blocked dependency list without sending page data anywhere.
 
 After the user approves a specific hostname, call `trust_network_host` with that
-hostname. The approval applies only to the current browser session. This avoids
-silently trusting new third-party services.
+hostname. The approval applies only to the current browser session. If approval
+is no longer needed, call `revoke_network_host` to remove it without restarting
+the browser.
 
 For example:
 
@@ -141,8 +142,9 @@ For example:
 5. Only after approval, call `trust_network_host`.
 6. Retry the page operation.
 
-The policy records hostnames and sanitized URLs locally; it does not contact the
-blocked service to discover more information.
+The policy records only the blocked hostname, scheme, and a generic policy reason;
+it does not retain the blocked request path, query string, fragment, or response
+body. It does not contact the blocked service to discover more information.
 
 ### Private-site dependencies
 
@@ -180,6 +182,21 @@ third-party requests remain blocked after private-site isolation begins. Use
 wildcards only when you trust the entire domain, and be especially careful
 with analytics and telemetry because those services may receive page or
 browser data according to the site's own behavior.
+### Private-session fallback and browser isolation
+
+Private-site sessions use the same network policy for the browser and the
+HTTP reader. A public host visited before private isolation is not silently
+promoted to trusted status when the session later enters private mode.
+
+When private isolation is active, historical Internet Archive fallback is
+disabled. Otherwise a continuity fallback could disclose the private target
+hostname to a third-party archive service. Public sessions may still use the
+archive fallback when enabled.
+
+AnyBridge also blocks Service Worker registration in the browser context used
+for network isolation. This keeps browserContext routing as the primary
+network-control boundary for page requests.
+
 ## Limits
 
 Aggressive anti-bot walls can still refuse a headless browser. When that
