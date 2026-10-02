@@ -345,3 +345,42 @@ The decision object is deliberately declarative. HWS remains responsible for
 executing the plan, collecting the resulting Evidence Envelope, and feeding
 verified outcomes back into the next decision. This creates a closed loop:
 **observe -> decide -> execute -> verify -> learn -> decide**.
+
+
+### Closed-loop remediation fabric
+
+AnyBridge can close the execution feedback loop without depending on a particular orchestrator. The standalone remediation primitives correlate a failure to an execution step and, when available, a concrete network dependency; generate declarative remediation actions with explicit preconditions; and accept the caller's realized remediation outcome.
+
+The loop is:
+
+`execution → step/evidence → failure attribution → remediation proposal → caller executes → realized outcome → execution/decomposition telemetry → next decision`
+
+Use `correlate_failure()` for an `EvidenceEnvelope` or `correlate_step_failure()` for provider-neutral step results. `propose_remediations()` returns safe, non-executing actions such as refreshing a stale target, validating navigation, inspecting an approved network dependency, capturing runtime diagnostics, or deepening verification.
+
+After the caller executes an action, `record_remediation_outcome()` produces two generic telemetry records: one shaped for execution/provider decisions and one shaped for decomposition. Successful recovery becomes positive evidence; unrecovered attempts increase the relevant failure/retry signal. `remediation_telemetry()` preserves the complete failure → action → outcome chain.
+
+AnyBridge does **not** execute the remediation proposal automatically, persist learning, schedule retries, or import an external orchestrator. The caller remains in control. This keeps AnyBridge usable as a standalone browser execution substrate for HWS or any other system.
+
+Example:
+
+```python
+from anybridge.remediation import (
+    correlate_failure,
+    propose_remediations,
+    record_remediation_outcome,
+)
+
+failure = correlate_failure(evidence, failure_id="failure-42", step_index=3, step="When I click Dashboard")
+actions = propose_remediations(failure)
+
+# Caller chooses/execut es an action and reports the realized result.
+feedback = record_remediation_outcome(
+    outcome,
+    provider="playwright",
+    browser="chromium",
+    task_class="dashboard",
+)
+
+# Feed feedback.execution_observation into the next execution decision
+# and feedback.decomposition_observation into the next decomposition decision.
+```
