@@ -204,6 +204,10 @@ class PageBridge:
         self._guard.allow_hosts((normalized,))
         return self._guard.policy()
 
+    async def revoke_host(self, host: str) -> dict:
+        """Revoke one explicitly trusted host for the current browser session."""
+        return self._guard.revoke_host(host)
+
     @property
     def started(self) -> bool:
         """Whether the browser session has been started."""
