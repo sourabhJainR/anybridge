@@ -62,6 +62,39 @@ class NetworkGuard:
             for entry in self._approved_hosts
         )
 
+    def check_url_sync(self, url: str) -> str:
+        """Synchronous policy check for WebDriver BiDi request interception."""
+        target = normalize_url(url)
+        parsed = urlsplit(target)
+        if parsed.scheme not in {"http", "https"}:
+            raise UnsafeTargetError("AnyBridge only allows http(s) website requests.")
+        if parsed.username or parsed.password:
+            raise UnsafeTargetError("Credentials must not be embedded in a website URL.")
+        host = (parsed.hostname or "").rstrip(".").casefold()
+        if not host:
+            raise UnsafeTargetError("The target URL has no hostname.")
+        if not self.allow_private:
+            self._validate_public(host, parsed.port)
+            return target
+        addresses = self._resolve(host, parsed.port)
+        if not addresses:
+            raise UnsafeTargetError(f'Could not resolve target host "{host}".')
+        is_private = any(not self._is_public(address) for address in addresses)
+        if is_private and not self.isolate_private:
+            return target
+        if is_private:
+            if not self._private_isolation:
+                self._private_isolation = True
+                self._private_hosts.add(host)
+                self._approved_hosts.add(host)
+            elif not self._host_is_approved(host):
+                raise UnsafeTargetError(f'Private-site isolation blocked network access to host "{host}".')
+            return target
+        if self._private_isolation and not self._host_is_approved(host):
+            raise UnsafeTargetError(f'Private-site isolation blocked network access to public host "{host}".')
+        self._approved_hosts.add(host)
+        return target
+
     async def assert_url(self, url: str) -> str:
         target = normalize_url(url)
         parsed = urlsplit(target)
