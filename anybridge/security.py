@@ -142,6 +142,12 @@ class NetworkGuard:
             return
         await route.continue_()
 
+    def allow_hosts(self, hosts: tuple[str, ...] | list[str]) -> None:
+        """Add explicitly trusted dependency hosts for this browser session."""
+        self._approved_hosts.update(
+            str(host).rstrip(".").casefold() for host in hosts if str(host).strip()
+        )
+
     def policy(self) -> dict:
         """Return a safe, non-secret description of the active network policy."""
         return {
