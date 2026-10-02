@@ -7,6 +7,7 @@ import os
 import sys
 
 from .browser import PageBridge
+from .selenium_driver import SeleniumDriver
 from .builtins import BUILTIN_NAMES, BUILTIN_TOOLS
 from .repositories import RepositoryError, RepositoryManager, RepositoryStore
 from .sites import SiteStore, SiteStoreError
@@ -76,6 +77,20 @@ async def _call(args):
         result = await bridge.call_tool(mapping[args.tool], tool_args)
         print(json.dumps(result, indent=2, ensure_ascii=False))
 
+
+async def _bdd(args):
+    from .bdd import BDDRunner, parse_feature
+    from pathlib import Path
+    provider = SeleniumDriver if args.provider == "selenium" else PageBridge
+    kwargs = {"headless": not args.headed, "allowed_hosts": args.allow_host}
+    if args.provider == "selenium": kwargs["browser"] = args.browser
+    bridge = provider(args.url, **kwargs)
+    await bridge.start()
+    try:
+        source = Path(args.feature).read_text(encoding="utf-8") if Path(args.feature).exists() else args.feature
+        print(json.dumps(await BDDRunner(bridge).run(parse_feature(source)), indent=2, ensure_ascii=False))
+    finally:
+        await bridge.close()
 
 async def _serve(args):
     from .server import serve
@@ -199,6 +214,15 @@ def main():
     p_call.add_argument("tool", help="Tool name")
     p_call.add_argument("--args", default="{}", help='Tool arguments as JSON (default "{}")')
     p_call.set_defaults(func=_call)
+
+    p_bdd = sub.add_parser("bdd", help="Run a Gherkin feature through AnyBridge")
+    p_bdd.add_argument("feature", help="Feature file path or inline Gherkin text")
+    p_bdd.add_argument("--url", default=None, help="Initial page URL if the feature does not navigate")
+    p_bdd.add_argument("--provider", choices=["playwright","selenium"], default="playwright")
+    p_bdd.add_argument("--browser", choices=["chrome","firefox","edge"], default="chrome")
+    p_bdd.add_argument("--headed", action="store_true")
+    p_bdd.add_argument("--allow-host", action="append", default=[])
+    p_bdd.set_defaults(func=_bdd)
 
     p_serve = sub.add_parser("serve", help="Run an MCP stdio server for the page")
     common(p_serve, optional_url=True)
