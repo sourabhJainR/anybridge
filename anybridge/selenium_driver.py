@@ -157,7 +157,7 @@ class SeleniumDriver:
             except Exception: pass
         return await self.current_site()
 
-    async def begin_recording(self):
+    def begin_recording(self):
         self._recording=[]; self._recording_start_url=self.current_url
 
     @property
