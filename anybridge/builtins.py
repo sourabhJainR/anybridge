@@ -14,7 +14,7 @@ from .sites import SiteStore
 from .webmcp import publish_tools
 from .tool_trust import ToolTrustRegistry
 from .content_boundary import wrap_tool_output
-from .webmcp_security import evaluate_webmcp_security
+from .webmcp_security import evaluate_webmcp_security\nfrom .webmcp_security_evolution import DefenseObservation, SecurityEvolutionStore, evolve_security_capabilities
 from .workflows import WorkflowStore
 
 BUILTIN_TOOLS = [
@@ -315,6 +315,11 @@ BUILTIN_TOOLS = [
             },
             "required": ["name"],
         },
+    },
+    {
+        "name": "webmcp_security_evolution",
+        "description": "Analyze caller-supplied WebMCP security outcomes to learn defense effectiveness, detect regressions, evolve bounded counter-cases, and manage regression-seed lifecycle. Does not execute generated cases.",
+        "inputSchema": {"type": "object", "properties": {"observations": {"type": "array"}, "generate_counter_cases": {"type": "boolean", "default": true}}, "required": ["observations"]},
     },
     {
         "name": "webmcp_security_evaluation",
@@ -745,6 +750,21 @@ async def call_builtin(
         match["origin"] = match.get("origin") or origin
         assessment = registry.observe(match, trusted=bool(args.get("trust")))
         return json.dumps(assessment.to_dict(), indent=2, ensure_ascii=False)
+    if name == "webmcp_security_evolution":
+        store = SecurityEvolutionStore()
+        observations = []
+        for item in args.get("observations") or []:
+            if not isinstance(item, dict):
+                raise ValueError("Each security evolution observation must be an object.")
+            observations.append(DefenseObservation(
+                attack_id=str(item["attack_id"]), attack_class=str(item["attack_class"]),
+                provider=str(item["provider"]), origin=str(item["origin"]),
+                schema_hash=str(item["schema_hash"]), defense=str(item["defense"]),
+                blocked=bool(item["blocked"]), evidence_confidence=float(item.get("evidence_confidence", 0.5)),
+                latency_ms=item.get("latency_ms"), execution_id=item.get("execution_id"), details=item.get("details"),
+            ))
+        report = evolve_security_capabilities(observations, store=store, generate_counter_cases=bool(args.get("generate_counter_cases", True)))
+        return json.dumps(report.to_dict(), indent=2, ensure_ascii=False)
     if name == "webmcp_security_evaluation":
         return json.dumps(evaluate_webmcp_security().to_dict(), indent=2, ensure_ascii=False)
     if name == "call_webmcp_tool":

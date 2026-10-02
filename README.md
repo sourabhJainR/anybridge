@@ -587,3 +587,37 @@ caller / CI / orchestrator (optional)
 ```
 
 The loop complements WebMCP's origin and annotation model: current WebMCP exposes origin and security-relevant hints such as `untrustedContentHint` and `consequentialHint`, while cross-origin tools require explicit origin exposure.
+
+### WebMCP security capability evolution
+
+The security learning loop now evolves the defensive capability itself, not only the regression corpus. SecurityEvolutionStore learns which defenses are effective for each attack family, detects degradation after an established baseline, creates deterministic counter-cases, and manages promoted regression seeds through an active/promoted → retired → reactivated lifecycle.
+
+```text
+security outcome
+      ↓
+attack family × defense effectiveness
+      ↓
+established baseline ──→ regression detection
+      ↓                         ↓
+controlled counter-cases    defensive signal
+      ↓
+future replay
+      ↓
+repeated passes ──→ retire obsolete seed
+      ↑
+later failure ────→ reactivate seed
+```
+
+The evolution layer tracks:
+
+- DefenseEffectiveness — attempts, blocks, block rate, confidence and regression state for each attack-family/defense pair.
+- DefenseRegression — an advisory signal when a previously established defense falls below its configured block-rate threshold.
+- CounterCase — deterministic field-order, case, whitespace and nesting variants derived from a regression seed. They are data fixtures only; AnyBridge never executes generated attacks.
+- RegressionSeed — bounded lifecycle state for promoted cases: active/promoted, retired after repeated verified passes, and reactivated after a later failure.
+- provider, origin and schema fingerprint on every observation, so effectiveness evidence can be attributed without collapsing distinct execution contexts.
+
+Use the built-in webmcp_security_evolution tool with caller-supplied security observations when an external runner or CI system wants a compact evolution report. The module is also directly usable through SecurityEvolutionStore and evolve_security_capabilities().
+
+Retirement never deletes historical observations: it only removes an obsolete seed from the active replay corpus. A later regression can reactivate that seed. Thresholds are configurable and bounded to keep the behavior deterministic and auditable.
+
+No HWS, model provider, database, scheduler, or external memory system is required. AnyBridge owns the capability-evolution primitives; the caller remains responsible for durable persistence, replay scheduling, execution of security tests, and remediation/authorization.
