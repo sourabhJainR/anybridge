@@ -112,3 +112,28 @@ def test_untrusted_third_party_dependency_remains_blocked(monkeypatch):
         pass
     else:
         raise AssertionError("untrusted third-party dependency was allowed")
+
+
+def test_blocked_dependency_is_reported_and_can_be_trusted(monkeypatch):
+    def resolve(host, port):
+        if host == "qa.internal":
+            return {"10.20.30.40"}
+        if host == "cdn.example.com":
+            return {"93.184.216.34"}
+        return {"93.184.216.35"}
+
+    monkeypatch.setattr(NetworkGuard, "_resolve", staticmethod(resolve))
+    guard = NetworkGuard(allow_private=True, isolate_private=True)
+
+    asyncio.run(guard.assert_url("https://qa.internal/"))
+    try:
+        asyncio.run(guard.assert_url("https://cdn.example.com/app.js"))
+    except UnsafeTargetError:
+        pass
+    else:
+        raise AssertionError("untrusted dependency was not blocked")
+
+    assert guard.blocked_hosts[0]["host"] == "cdn.example.com"
+    guard.allow_hosts(("cdn.example.com",))
+    asyncio.run(guard.assert_url("https://cdn.example.com/app.js"))
+    assert guard.blocked_hosts == ()
