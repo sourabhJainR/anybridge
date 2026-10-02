@@ -281,7 +281,7 @@ def create_server(runtime: BridgeRuntime | None = None) -> Server:
 
     @asynccontextmanager
     async def remote_lifespan(server):
-        session_runtime = BridgeRuntime(allow_private_network=False)
+        session_runtime = BridgeRuntime(allow_private_network=False, provider="playwright")
         try:
             yield session_runtime
         finally:
@@ -373,12 +373,14 @@ async def serve(
     wait: float = 5.0,
     builtins: bool = True,
     allowed_hosts: tuple[str, ...] | list[str] = (),
+    provider: str = "playwright",
+    browser: str = "chrome",
 ) -> None:
     """Run the AnyBridge MCP server over stdio."""
     if not url and not builtins:
         raise ValueError("A URL is required when --no-builtins is used.")
 
-    runtime = BridgeRuntime(url, headless=headless, wait=wait, builtins=builtins, allowed_hosts=allowed_hosts)
+    runtime = BridgeRuntime(url, headless=headless, wait=wait, builtins=builtins, allowed_hosts=allowed_hosts, provider=provider, browser=browser)
     server = create_server(runtime)
     try:
         async with stdio_server() as (read, write):
