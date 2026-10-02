@@ -197,3 +197,25 @@ ANYBRIDGE_SKIP_BROWSER_TESTS=1 python -m unittest discover -s tests   # without 
 ## License
 
 MIT
+
+## Browser providers and BDD
+
+AnyBridge keeps browser semantics provider-neutral. Playwright remains the default,
+and Selenium/WebDriver is available as an optional provider:
+
+- `pip install anybridge[selenium]`
+- `anybridge serve https://internal.example --provider selenium --browser chrome`
+- `anybridge bdd features/login.feature --provider selenium --browser chrome`
+
+Supported Selenium browsers in the provider are Chrome, Edge, and Firefox. Selenium
+4.49+ is used so WebDriver BiDi can provide request interception where the browser
+supports it. The same AnyBridge network policy is applied to top-level navigation
+and BiDi subresource requests when BiDi is available.
+
+BDD is provider-neutral. The `run_bdd` MCP tool and `anybridge bdd` command execute
+Gherkin Features, Backgrounds, Scenarios, Scenario Outlines, Examples, tags, and
+common Given/When/Then/And/But actions. Custom step definitions can be layered on
+top of the BDDRunner without coupling them to Playwright or Selenium.
+
+The optional `anybridge[bdd]` extra installs pytest-bdd for projects that also want
+pytest-native BDD. AnyBridge's runtime BDD executor does not require pytest.
