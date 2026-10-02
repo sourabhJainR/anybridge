@@ -76,30 +76,4 @@ class BDDRunner:
             for st in scenario.steps:
                 if st.keyword=="Examples":
                     headers=st.table[0] if st.table else [];example_rows=[dict(zip(headers,row)) for row in st.table[1:]] or [{}]
-            for row in example_rows:
-                values={**variables,**row};executed=[]
-                for st in feature.background+scenario.steps:
-                    if st.keyword=="Examples":continue
-                    text=substitute(st.text,values)
-                    matched=next(((p,h) for p,h in self.steps.items() if p.fullmatch(text)),None)
-                    if not matched:raise ValueError(f"Undefined BDD step: {st.keyword} {text}")
-                    result=matched[1](*matched[0].match(text).groups())
-                    if hasattr(result,"__await__"):await result
-                    executed.append(text)
-                evidence = None
-                collector = getattr(self.bridge, "collect_evidence", None)
-                if collector is not None:
-                    evidence = await collector(
-                        action="bdd_scenario",
-                        expected={"scenario": scenario.name},
-                        assertion=f"Scenario '{scenario.name}' completed",
-                        status="passed",
-                        confidence=1.0,
-                    )
-                results.append({
-                    "scenario": scenario.name,
-                    "steps": executed,
-                    "status": "passed",
-                    "evidence": evidence,
-                })
-        return {"feature":feature.name,"scenarios":results}
+            for row in example_rows:\n                values={**variables,**row};executed=[];step_evidence=[]\n                for step_index, st in enumerate(feature.background+scenario.steps, start=1):\n                    if st.keyword=="Examples":continue\n                    text=substitute(st.text,values)\n                    matched=next(((p,h) for p,h in self.steps.items() if p.fullmatch(text)),None)\n                    if not matched:\n                        error=f"Undefined BDD step: {st.keyword} {text}"\n                        step_evidence.append(await self._step_evidence(scenario=scenario, step=st, step_index=step_index, text=text, status="failed", error=error))\n                        raise ValueError(error)\n                    try:\n                        result=matched[1](*matched[0].match(text).groups())\n                        if hasattr(result,"__await__"):await result\n                    except Exception as exc:\n                        step_evidence.append(await self._step_evidence(scenario=scenario, step=st, step_index=step_index, text=text, status="failed", error=str(exc)))\n                        raise\n                    executed.append(text)\n                    step_evidence.append(await self._step_evidence(scenario=scenario, step=st, step_index=step_index, text=text, status="passed", observed="completed"))\n                evidence = None\n                collector = getattr(self.bridge, "collect_evidence", None)\n                if collector is not None:\n                    evidence = await collector(\n                        action="bdd_scenario",\n                        expected={"scenario": scenario.name},\n                        assertion="Scenario completed",\n                        status="passed",\n                        confidence=1.0,\n                    )\n                results.append({\n                    "scenario": scenario.name,\n                    "steps": executed,\n                    "status": "passed",\n                    "evidence": evidence,\n                    "step_evidence": [item for item in step_evidence if item is not None],\n                })\n        return {"feature":feature.name,"scenarios":results}
