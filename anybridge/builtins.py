@@ -394,6 +394,18 @@ BUILTIN_TOOLS = [
         },
     },
     {
+        "name": "run_bdd",
+        "description": "Execute a Gherkin feature file through the active browser provider and return scenario/step results.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "feature": {"type": "string", "description": "Feature file path or complete Gherkin text"},
+                "variables": {"type": "object"}
+            },
+            "required": ["feature"]
+        }
+    },
+    {
         "name": "list_workflows",
         "description": "List reusable workflows and required variable names.",
         "inputSchema": {"type": "object", "properties": {}},
@@ -705,6 +717,21 @@ async def call_builtin(
         for step in workflow.steps:
             await bridge.run_recorded_step(step, variables)
         return await bridge.snapshot(interactive_only=True, compact=True)
+    if name == "run_bdd":
+        from .bdd import BDDRunner, parse_feature
+        value = str(args["feature"])
+        try:
+            from pathlib import Path
+            p = Path(value)
+            source = p.read_text(encoding="utf-8") if p.exists() else value
+        except OSError:
+            source = value
+        return json.dumps(
+            await BDDRunner(bridge).run(parse_feature(source), args.get("variables") or {}),
+            indent=2,
+            ensure_ascii=False,
+        )
+
     if name == "list_workflows":
         saved = workflows.list()
         if not saved:

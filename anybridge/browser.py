@@ -205,6 +205,17 @@ class PageBridge:
             return
         await websocket.connect_to_server()
 
+
+    async def click_text(self, text: str):
+        locator = self._page.get_by_text(text, exact=True).first
+        await locator.click()
+        return await self.snapshot()
+
+    async def fill_label(self, label: str, value: str):
+        locator = self._page.get_by_label(label, exact=True).first
+        await locator.fill(value)
+        return await self.snapshot()
+
     async def network_policy(self) -> dict:
         """Return the safe local network policy and blocked dependency hosts."""
         return self._guard.policy()
