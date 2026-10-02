@@ -171,6 +171,10 @@ class PageBridge:
             "user_agent": ua,
             "viewport": {"width": 1280, "height": 900},
             "locale": "en-US",
+            # NetworkGuard is installed with browserContext.route(). Playwright
+            # documents that Service Workers can bypass normal page routing, so
+            # block registration in security-sensitive sessions.
+            "service_workers": "block",
         }
         if self.storage_state:
             context_options["storage_state"] = self.storage_state
