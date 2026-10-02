@@ -414,3 +414,18 @@ execute → checkpoint → interruption → restore state → revalidate → re-
 ```
 
 Playwright supports browser-context storage snapshots for cookies/local storage and related state, but persisted state can contain authentication material. AnyBridge therefore keeps checkpoint metadata separate from browser credentials; callers can explicitly use the existing profile/storage facilities when authentication restoration is required. citeturn0search0turn0search5
+
+
+### Action risk and retry policy
+
+AnyBridge exposes a deterministic `assess_action` policy primitive before consequential browser operations. Actions are classified as read, navigation, mutation, consequential, or unknown. The policy distinguishes bounded automatic retries from state revalidation and explicit confirmation.
+
+Read-only operations can be retried within a small bound; navigation is bounded and replayable; state mutations require current-state revalidation; consequential signals such as delete, purchase, payment, transfer, send, submit, or withdraw default to confirmation with zero automatic retries. Unknown actions conservatively default to revalidation.
+
+This complements the checkpoint and self-healing layers:
+
+```text
+failure → action assessment → retry / revalidate / confirm → execute → verify → journal
+```
+
+WebMCP itself now exposes annotations such as `readOnlyHint` and `consequentialHint` to help agents distinguish read-only from consequential tools. AnyBridge's policy therefore provides a local defensive layer rather than trusting a site's metadata alone. citeturn0search0turn0search1

@@ -5,6 +5,7 @@ import importlib.util
 from urllib.parse import urlsplit
 
 from .browser import PageBridge
+from .action_policy import assess_action
 from .checkpoint import CheckpointStore, decide_resume, make_checkpoint
 from .engines import AdaptiveReader
 from .profiles import ProfileStore
@@ -215,6 +216,15 @@ BUILTIN_TOOLS = [
             "type": "object",
             "properties": {"full_page": {"type": "boolean", "default": False}},
         },
+    },
+    {
+        "name": "assess_action",
+        "description": "Classify an action's risk and whether automatic retry, revalidation, confirmation, or denial is appropriate. Classification is advisory and does not execute the action.",
+        "inputSchema": {"type": "object", "properties": {
+            "action": {"type": "string"},
+            "target": {"type": "string"},
+            "consequential": {"type": "boolean"}
+        }, "required": ["action"]},
     },
     {
         "name": "save_checkpoint",
@@ -621,6 +631,13 @@ async def call_builtin(
         )
     if name == "screenshot":
         return await bridge.screenshot(full_page=bool(args.get("full_page")))
+    if name == "assess_action":
+        result = assess_action(
+            str(args["action"]),
+            target=args.get("target"),
+            consequential=args.get("consequential"),
+        )
+        return json.dumps(result.__dict__, indent=2, ensure_ascii=False)
     if name == "save_checkpoint":
         current = await bridge.current_site()
         checkpoint = make_checkpoint(
