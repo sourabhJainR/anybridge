@@ -121,6 +121,29 @@ private-network targets are blocked including across redirects, saved profiles
 are encrypted and scoped to one origin, and recorded workflows never store the
 values that were typed into them.
 
+### Blocked dependency discovery
+
+When a private-site page tries to reach an untrusted dependency, AnyBridge blocks
+the request and records the hostname locally. Agents can call `network_policy`
+to inspect the blocked dependency list without sending page data anywhere.
+
+After the user approves a specific hostname, call `trust_network_host` with that
+hostname. The approval applies only to the current browser session. This avoids
+silently trusting new third-party services.
+
+For example:
+
+1. Open the private QA site.
+2. Call `network_policy`.
+3. Review the blocked hostname.
+4. Ask the user whether that specific CDN, authentication, analytics, or telemetry
+   service is trusted.
+5. Only after approval, call `trust_network_host`.
+6. Retry the page operation.
+
+The policy records hostnames and sanitized URLs locally; it does not contact the
+blocked service to discover more information.
+
 ### Private-site dependencies
 
 Strict private-site isolation does not disable the browser. The site's own
