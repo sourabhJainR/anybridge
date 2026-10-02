@@ -96,6 +96,12 @@ class SeleniumDriver:
             await asyncio.to_thread(self._driver.quit)
         self._driver=None; self._started=False
 
+    async def __aenter__(self):
+        return await self.start()
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self.close()
+
     @property
     def started(self):return self._started
     @property
