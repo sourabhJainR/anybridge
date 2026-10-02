@@ -140,12 +140,13 @@ class PageBridge:
         *,
         allow_private_network: bool = True,
         storage_state: dict | None = None,
+        allowed_hosts: tuple[str, ...] | list[str] = (),
     ):
         self.url = normalize_url(url) if url else "about:blank"
         self.headless = headless
         self.allow_private_network = allow_private_network
         self.storage_state = storage_state
-        self._guard = NetworkGuard(allow_private=allow_private_network, isolate_private=True)
+        self._guard = NetworkGuard(allow_private=allow_private_network, isolate_private=True, allowed_hosts=allowed_hosts)
         self._pw = None
         self._browser = None
         self._context = None

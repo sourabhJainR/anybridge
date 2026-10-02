@@ -124,20 +124,39 @@ values that were typed into them.
 ### Private-site dependencies
 
 Strict private-site isolation does not disable the browser. The site's own
-origin remains available, while unrelated hosts are blocked. If an internal
-application uses additional API, authentication, asset, or service hosts,
-explicitly allow those hosts with `ANYBRIDGE_PRIVATE_ALLOWED_HOSTS`.
+origin remains available, while unrelated hosts are blocked. If the application
+needs an API, authentication service, CDN, analytics, telemetry, or another
+third-party dependency, the user can explicitly trust that host.
 
-For example, a Planful development environment that intentionally uses
-multiple `*.planfuldev.com` hosts can run with:
+Use `--allow-host` to grant access for the current AnyBridge process. Repeat it
+for multiple dependencies; exact hosts and trusted subdomain wildcards are
+supported:
 
 ```bash
-ANYBRIDGE_PRIVATE_ALLOWED_HOSTS="*.planfuldev.com" anybridge serve
+anybridge serve https://qa.example.internal \
+  --allow-host cdn.example.com \
+  --allow-host auth.example.com \
+  --allow-host analytics.example.com
 ```
 
-Only use a wildcard for a domain you control/trust. Do not add public
-analytics, advertising, telemetry, or unknown third-party hosts if the goal
-is to keep private-site data inside the private boundary.
+A wildcard is useful when you trust the complete dependency domain:
+
+```bash
+anybridge serve https://xxx.planfuldev.com --allow-host "*.planfuldev.com"
+```
+
+The equivalent environment setting is useful for MCP launchers that do not
+make CLI arguments convenient:
+
+```bash
+ANYBRIDGE_PRIVATE_ALLOWED_HOSTS="cdn.example.com,auth.example.com" anybridge serve https://qa.example.internal
+```
+
+These are explicit opt-ins, not automatic exceptions. Without an allow rule,
+third-party requests remain blocked after private-site isolation begins. Use
+wildcards only when you trust the entire domain, and be especially careful
+with analytics and telemetry because those services may receive page or
+browser data according to the site's own behavior.
 ## Limits
 
 Aggressive anti-bot walls can still refuse a headless browser. When that
