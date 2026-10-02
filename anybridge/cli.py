@@ -12,6 +12,26 @@ from .builtins import BUILTIN_NAMES, BUILTIN_TOOLS
 from .repositories import RepositoryError, RepositoryManager, RepositoryStore
 from .sites import SiteStore, SiteStoreError
 from .webmcp import publish_tools
+from .providers import default_browser, select_provider
+
+
+def _provider_and_browser(args):
+    requested_browser = args.browser
+    if args.provider == "playwright":
+        provider = "playwright"
+        browser = "chromium" if requested_browser in {"auto", "chrome"} else requested_browser
+    elif args.provider == "selenium":
+        provider = "selenium"
+        browser = "chrome" if requested_browser == "auto" else requested_browser
+    else:
+        provider_browser = None if requested_browser == "auto" else requested_browser
+        if requested_browser == "chrome":
+            provider_browser = "chrome"
+        provider = select_provider(browser=provider_browser)
+        browser = default_browser(provider) if requested_browser == "auto" else (
+            "chromium" if provider == "playwright" and requested_browser == "chrome" else requested_browser
+        )
+    return provider, browser
 
 
 def _print_tools(site: list[dict], builtins: list[dict], as_json: bool):
@@ -37,9 +57,10 @@ def _print_group(tools: list[dict]):
 
 
 async def _list(args):
-    provider = SeleniumDriver if args.provider == "selenium" else PageBridge
+    provider_name, browser = _provider_and_browser(args)
+    provider = SeleniumDriver if provider_name == "selenium" else PageBridge
     kwargs = {"headless": not args.headed, "allowed_hosts": args.allow_host}
-    if args.provider == "selenium": kwargs["browser"] = "chrome" if args.browser == "auto" else args.browser
+    if provider_name == "selenium": kwargs["browser"] = browser
     async with provider(args.url, **kwargs) as bridge:
         raw = await bridge.discover_tools(
             timeout=args.wait, reload_on_failure=True
@@ -71,9 +92,10 @@ async def _call(args):
         finally:
             await runtime.close()
         return
-    provider = SeleniumDriver if args.provider == "selenium" else PageBridge
+    provider_name, browser = _provider_and_browser(args)
+    provider = SeleniumDriver if provider_name == "selenium" else PageBridge
     kwargs = {"headless": not args.headed, "allowed_hosts": args.allow_host}
-    if args.provider == "selenium": kwargs["browser"] = args.browser
+    if provider_name == "selenium": kwargs["browser"] = browser
     async with provider(args.url, **kwargs) as bridge:
         raw = await bridge.discover_tools(
             timeout=args.wait, reload_on_failure=True
@@ -89,9 +111,10 @@ async def _call(args):
 async def _bdd(args):
     from .bdd import BDDRunner, parse_feature
     from pathlib import Path
-    provider = SeleniumDriver if args.provider == "selenium" else PageBridge
+    provider_name, browser = _provider_and_browser(args)
+    provider = SeleniumDriver if provider_name == "selenium" else PageBridge
     kwargs = {"headless": not args.headed, "allowed_hosts": args.allow_host}
-    if args.provider == "selenium": kwargs["browser"] = args.browser
+    if provider_name == "selenium": kwargs["browser"] = browser
     bridge = provider(args.url, **kwargs)
     await bridge.start()
     try:
