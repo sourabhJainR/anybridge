@@ -47,7 +47,7 @@ class AdaptiveFabricTests(TestCase):
 
     def test_counterfactuals_include_verification_and_provider_fallback(self):
         decision, alternatives = decide_execution_adaptive(
-            available=("playwright",),
+            available=("playwright", "selenium"),
             independent_work=1,
             history=(
                 ExecutionObservation(
@@ -62,6 +62,8 @@ class AdaptiveFabricTests(TestCase):
         names = {p.name for p in alternatives}
         self.assertEqual(decision.verification_depth, "deep")
         self.assertIn("alternate_provider", names)
+        alternate = next(p for p in alternatives if p.name == "alternate_provider")
+        self.assertNotEqual(alternate.decision.provider, decision.provider)
 
     def test_telemetry_is_hws_friendly(self):
         decision, _ = decide_execution_adaptive(available=("playwright",))
