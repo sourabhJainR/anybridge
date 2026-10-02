@@ -226,7 +226,7 @@ decision, alternatives = decide_execution_adaptive(
 ```
 
 `decision_telemetry()` emits a stable JSON-friendly record containing the chosen
-plan and resource signals so HWS can merge it into its canonical Evidence Envelope.
+plan and resource signals so callers can merge it into its canonical Evidence Envelope.
 
 
 ### Failure-aware decomposition
@@ -236,7 +236,7 @@ guidance: smaller verified partitions after repeated failures, network-dependenc
 isolation after network failures, and staged execution with explicit preconditions
 for high-risk or destructive work. Independent low-risk work remains parallel.
 
-The recommendation is declarative. HWS decides whether and how to execute it, and
+The recommendation is declarative. the caller decides whether and how to execute it, and
 can feed the realized outcome back into the next decision.
 
 ```python
@@ -251,7 +251,7 @@ decision = recommend_decomposition(
 
 The result includes strategy, suggested parallelism, verification depth,
 preconditions, escalation and a confidence/reason trace. `decomposition_telemetry()`
-provides a stable record for the HWS Evidence Graph.
+provides a stable record for the an external evidence system.
 
 ## Limits
 
