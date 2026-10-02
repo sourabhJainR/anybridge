@@ -265,3 +265,27 @@ long-lived learning, replay corpora, and promotion/rollback decisions in HWS
 while AnyBridge remains a browser execution component. Malformed observations
 are ignored, and a provider can never be selected if it fails the requested
 capability, browser, or runtime-availability constraints.
+
+### Execution decision fabric
+
+AnyBridge can also consume the same evidence telemetry as a broader execution
+decision. `decide_execution()` jointly selects provider and browser and derives
+verification depth, safe parallel-vs-serial execution, retry budget, and
+escalation. Capability and safety constraints remain hard gates; telemetry only
+optimizes within those boundaries.
+
+```python
+from anybridge.execution_fabric import decide_execution
+
+decision = decide_execution(
+    required=["bdd"],
+    risk="medium",
+    independent_work=4,
+    execution_history=[...],
+)
+```
+
+The decision object is deliberately declarative. HWS remains responsible for
+executing the plan, collecting the resulting Evidence Envelope, and feeding
+verified outcomes back into the next decision. This creates a closed loop:
+**observe -> decide -> execute -> verify -> learn -> decide**.
