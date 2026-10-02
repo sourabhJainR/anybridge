@@ -8,6 +8,8 @@ import re
 from copy import deepcopy
 from urllib.parse import urlsplit
 
+from .content_boundary import wrap_tool_metadata
+
 
 def _slug(value: str, fallback: str, limit: int) -> str:
     clean = re.sub(r"[^A-Za-z0-9_-]+", "_", value).strip("_").lower()
@@ -62,6 +64,16 @@ def publish_tools(tools: list[dict], page_url: str | None) -> tuple[list[dict], 
         raw_description = " ".join(
             str(raw.get("description") or "").split()
         )[:1200]
+        annotations = raw.get("annotations")
+        if not isinstance(annotations, dict):
+            annotations = {}
+        boundary = wrap_tool_metadata(
+            origin=origin,
+            name=original,
+            description=raw_description,
+            schema=schema,
+            annotations=annotations,
+        )
         published.append(
             {
                 "name": public_name,
@@ -72,12 +84,13 @@ def publish_tools(tools: list[dict], page_url: str | None) -> tuple[list[dict], 
                     f"[{signature}] {raw_description}"
                 ).strip(),
                 "inputSchema": deepcopy(schema),
-                "annotations": deepcopy(raw.get("annotations") if isinstance(raw.get("annotations"), dict) else {}),
+                "annotations": deepcopy(annotations),
                 "origin": raw.get("origin") or origin,
                 "_anybridge": {
                     "origin": origin,
                     "originalName": original,
                     "signature": signature,
+                    "content_boundary": boundary.to_dict(),
                 },
             }
         )
