@@ -35,28 +35,62 @@ class SeleniumDriver:
         if self.browser=="chrome":
             o=ChromeOptions()
             if self.headless:o.add_argument("--headless=new")
+            o.enable_bidi = True
             o.add_argument("--disable-background-networking");o.add_argument("--disable-component-update")
             o.add_argument("--disable-sync");o.add_argument("--no-first-run")
             return webdriver.Chrome(options=o)
         if self.browser=="firefox":
             o=FirefoxOptions()
             if self.headless:o.add_argument("-headless")
+            o.enable_bidi = True
             return webdriver.Firefox(options=o)
         if self.browser=="edge":
             o=EdgeOptions()
             if self.headless:o.add_argument("--headless=new")
+            o.enable_bidi = True
             return webdriver.Edge(options=o)
         raise ValueError(f"Unsupported Selenium browser: {self.browser!r}")
 
     async def start(self,settle=1.0):
         if self._started:return self
         self._driver=self._driver or await asyncio.to_thread(self._create_driver)
+        self._install_bidi_network_guard()
         self._started=True
         if self.url!="about:blank":
             await self.navigate(self.url); await asyncio.sleep(settle)
         return self
 
+    def _install_bidi_network_guard(self):
+        """Intercept every WebDriver request when Selenium BiDi is available."""
+        try:
+            from selenium.webdriver.common.bidi.network import Network
+            network = getattr(self._driver, "network", None)
+            if network is None:
+                return
+            def before_request(request):
+                try:
+                    self._guard.check_url_sync(request.url)
+                except Exception:
+                    try:
+                        request.fail_request()
+                    except AttributeError:
+                        request.fail()
+                    host = (urlsplit(request.url).hostname or "").rstrip(".").casefold()
+                    if host:
+                        self._guard._blocked_hosts[host] = {
+                            "host": host, "scheme": urlsplit(request.url).scheme, "reason": "network_policy_block"
+                        }
+            self._bidi_callback_id = network.add_request_handler("before_request", before_request)
+        except (ImportError, AttributeError, Exception):
+            # Selenium versions/browsers without BiDi retain navigation-level checks.
+            self._bidi_callback_id = None
+
     async def close(self):
+        if self._driver is not None and getattr(self, "_bidi_callback_id", None) is not None:
+            try:
+                self._driver.network.remove_request_handler("before_request", self._bidi_callback_id)
+            except Exception:
+                pass
         if self._driver is not None and self._owns_driver:
             await asyncio.to_thread(self._driver.quit)
         self._driver=None; self._started=False
