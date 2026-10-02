@@ -1,6 +1,6 @@
 """Resource-aware, counterfactual extensions for the execution decision fabric.
 
-The fabric remains declarative: it returns a plan and alternatives, while HWS
+The fabric remains declarative: it returns a plan and alternatives, while caller
 owns execution, persistence, scheduling and learning.
 """
 from __future__ import annotations
@@ -177,7 +177,7 @@ def decision_telemetry(
     test_id: str | None = None,
     resources: ResourceObservation | None = None,
 ) -> dict[str, object]:
-    """Emit a stable telemetry shape that HWS can merge into its evidence envelope."""
+    """Emit a stable telemetry shape that caller can merge into its evidence envelope."""
     payload: dict[str, object] = {
         "execution_id": execution_id,
         "test_id": test_id,
