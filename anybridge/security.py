@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+import os
 import socket
 from urllib.parse import urlsplit
 
@@ -34,8 +35,12 @@ class NetworkGuard:
     ) -> None:
         self.allow_private = allow_private
         self.isolate_private = isolate_private
+        configured_hosts = os.getenv("ANYBRIDGE_PRIVATE_ALLOWED_HOSTS", "")
+        configured = tuple(item.strip() for item in configured_hosts.split(",") if item.strip())
         self._approved_hosts: set[str] = {
-            str(host).rstrip(".").casefold() for host in allowed_hosts if str(host).strip()
+            str(host).rstrip(".").casefold()
+            for host in (*allowed_hosts, *configured)
+            if str(host).strip()
         }
         self._private_hosts: set[str] = set()
         self._private_isolation = False
@@ -47,6 +52,14 @@ class NetworkGuard:
     @property
     def approved_hosts(self) -> tuple[str, ...]:
         return tuple(sorted(self._approved_hosts))
+
+    def _host_is_approved(self, host: str) -> bool:
+        if host in self._approved_hosts:
+            return True
+        return any(
+            entry.startswith("*.") and host.endswith(entry[1:])
+            for entry in self._approved_hosts
+        )
 
     async def assert_url(self, url: str) -> str:
         target = normalize_url(url)
@@ -76,14 +89,14 @@ class NetworkGuard:
                 self._private_isolation = True
                 self._private_hosts.add(host)
                 self._approved_hosts.add(host)
-            elif host not in self._approved_hosts:
+            elif not self._host_is_approved(host):
                 raise UnsafeTargetError(
                     f'Private-site isolation blocked network access to host "{host}". '
                     "Add the host explicitly to AnyBridge's private-site allowlist."
                 )
             return target
 
-        if self._private_isolation and host not in self._approved_hosts:
+        if self._private_isolation and not self._host_is_approved(host):
             raise UnsafeTargetError(
                 f'Private-site isolation blocked network access to public host "{host}".'
             )

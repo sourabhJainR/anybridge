@@ -174,8 +174,9 @@ class PageBridge:
         if self.storage_state:
             context_options["storage_state"] = self.storage_state
         self._context = await self._browser.new_context(**context_options)
-        if not self.allow_private_network:
-            await self._context.route("**/*", self._guard.route)
+        # All browser egress is checked. Private targets enter isolation;
+        # explicitly approved dependency hosts remain available to the app.
+        await self._context.route("**/*", self._guard.route)
         await self._context.add_init_script(SHIM)
         await self._context.add_init_script(PAGETOOLS)
         # Links with target=_blank open a new tab; follow it as the current page.
