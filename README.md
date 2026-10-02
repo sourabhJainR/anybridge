@@ -228,6 +228,31 @@ decision, alternatives = decide_execution_adaptive(
 `decision_telemetry()` emits a stable JSON-friendly record containing the chosen
 plan and resource signals so HWS can merge it into its canonical Evidence Envelope.
 
+
+### Failure-aware decomposition
+
+`recommend_decomposition()` turns execution telemetry into advisory decomposition
+guidance: smaller verified partitions after repeated failures, network-dependency
+isolation after network failures, and staged execution with explicit preconditions
+for high-risk or destructive work. Independent low-risk work remains parallel.
+
+The recommendation is declarative. HWS decides whether and how to execute it, and
+can feed the realized outcome back into the next decision.
+
+```python
+from anybridge.decomposition import recommend_decomposition
+
+decision = recommend_decomposition(
+    independent_work=6,
+    history=[...],
+    max_parallelism=4,
+)
+```
+
+The result includes strategy, suggested parallelism, verification depth,
+preconditions, escalation and a confidence/reason trace. `decomposition_telemetry()`
+provides a stable record for the HWS Evidence Graph.
+
 ## Limits
 
 Aggressive anti-bot walls can still refuse a headless browser. When that
