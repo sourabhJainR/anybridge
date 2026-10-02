@@ -537,3 +537,53 @@ adversarial regression evaluation
 ```
 
 This follows current WebMCP security guidance that calls out malicious tool manifests and contaminated outputs, recommends deterministic guardrails and spotlighting/encoding, and recommends routinely evaluating agent vulnerabilities. citeturn0view0
+
+### Adaptive WebMCP security learning loop
+
+AnyBridge can turn realized WebMCP security failures into bounded regression seeds without introducing an orchestrator or persistence dependency.
+
+```text
+discover/evaluate
+      ↓
+security observation
+      ↓
+correlate attack class + provider + origin + schema + defense
+      ↓
+aggregate repeated failure pattern
+      ↓
+promotion threshold
+      ↓
+bounded regression corpus
+      ↓
+replay on future evaluations
+      ↓
+new observations
+```
+
+`SecurityLearningStore` records caller-supplied outcomes and tracks:
+
+- attack class and attack identity;
+- execution provider;
+- page origin;
+- schema fingerprint;
+- defense used;
+- pass/fail outcome;
+- evidence confidence and optional latency/execution metadata.
+
+A stable failure signature is created from the attack class, provider, origin, schema fingerprint and defense. Repeated failures are automatically promoted after configurable minimum failure-count and failure-rate thresholds. A single failure does not become a permanent regression, and successful observations dilute a failure pattern's rate.
+
+Promoted cases are bounded, exportable regression seeds. They do not execute automatically and are never treated as instructions. The caller owns durable storage, replay scheduling, remediation authority and source-control promotion.
+
+This deliberately keeps AnyBridge standalone:
+
+```text
+AnyBridge
+  ├── observes
+  ├── correlates
+  ├── promotes regression seeds
+  └── exports evidence
+       ↓
+caller / CI / orchestrator (optional)
+```
+
+The loop complements WebMCP's origin and annotation model: current WebMCP exposes origin and security-relevant hints such as `untrustedContentHint` and `consequentialHint`, while cross-origin tools require explicit origin exposure.
