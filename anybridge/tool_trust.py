@@ -226,7 +226,7 @@ class ToolTrustRegistry:
             fingerprint=assessment.fingerprint,
             changed=assessment.changed,
             output_untrusted=assessment.output_untrusted,
-            requires_confirmation=assessment.requires_confirmation or state in {"new", "changed"},
+            requires_confirmation=(\n                assessment.requires_confirmation\n                or state == "changed"\n                or (state == "new" and not trusted)\n            ),
             risk=assessment.risk,
             retry_policy=assessment.retry_policy,
             reasons=assessment.reasons,
