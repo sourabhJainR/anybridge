@@ -11,8 +11,9 @@ from mcp.server import NotificationOptions, Server
 from mcp.server.stdio import stdio_server
 
 from .browser import PageBridge
+from .driver import BrowserDriver
 from .selenium_driver import SeleniumDriver
-from .providers import select_provider
+from .providers import default_browser, select_provider
 from .builtins import BUILTIN_NAMES, BUILTIN_TOOLS, call_builtin
 from .engines import AdaptiveReader
 from .profiles import ProfileStore
@@ -166,7 +167,7 @@ class BridgeRuntime:
         profiles: ProfileStore | None = None,
         workflows: WorkflowStore | None = None,
         adaptive: AdaptiveReader | None = None,
-        bridge: PageBridge | None = None,
+        bridge: BrowserDriver | None = None,
         allow_private_network: bool = True,
         allowed_hosts: tuple[str, ...] | list[str] = (),
         provider: str = "auto",
@@ -187,14 +188,14 @@ class BridgeRuntime:
         )
         if bridge is not None:
             self.provider = getattr(bridge, "provider", provider)
-            self.browser = browser
+            self.browser = getattr(bridge, "browser", browser)
             self.bridge = bridge
         else:
             self.provider = select_provider(
                 preferred=None if provider == "auto" else provider,
                 browser=None if browser == "auto" else browser,
             )
-            self.browser = browser
+            self.browser = default_browser(self.provider) if browser == "auto" else browser
             if self.provider == "selenium":
                 self.bridge = SeleniumDriver(
                     url, headless=headless, allow_private_network=allow_private_network,
