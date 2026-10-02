@@ -44,6 +44,7 @@ class NetworkGuard:
         }
         self._private_hosts: set[str] = set()
         self._private_isolation = False
+        self._blocked_hosts: dict[str, dict] = {}
 
     @property
     def private_isolation(self) -> bool:
@@ -137,16 +138,29 @@ class NetworkGuard:
             return
         try:
             await self.assert_url(url)
-        except (SiteStoreError, ValueError):
+        except (SiteStoreError, ValueError) as error:
+            host = (urlsplit(url).hostname or "").rstrip(".").casefold()
+            if host:
+                self._blocked_hosts[host] = {
+                    "host": host,
+                    "url": urlsplit(url)._replace(query="", fragment="").geturl(),
+                    "reason": str(error),
+                }
             await route.abort("blockedbyclient")
             return
         await route.continue_()
+
+    @property
+    def blocked_hosts(self) -> tuple[dict, ...]:
+        return tuple(self._blocked_hosts[host] for host in sorted(self._blocked_hosts))
 
     def allow_hosts(self, hosts: tuple[str, ...] | list[str]) -> None:
         """Add explicitly trusted dependency hosts for this browser session."""
         self._approved_hosts.update(
             str(host).rstrip(".").casefold() for host in hosts if str(host).strip()
         )
+        for host in hosts:
+            self._blocked_hosts.pop(str(host).rstrip(".").casefold(), None)
 
     def policy(self) -> dict:
         """Return a safe, non-secret description of the active network policy."""
@@ -155,4 +169,5 @@ class NetworkGuard:
             "private_site_isolation": self._private_isolation,
             "approved_hosts": list(self.approved_hosts),
             "private_hosts": sorted(self._private_hosts),
+            "blocked_hosts": list(self.blocked_hosts),
         }
