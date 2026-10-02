@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from math import isfinite
 from typing import Iterable, Mapping
 
-from .providers import ProviderProfile, provider_profiles
+from .providers import ProviderProfile, available_providers, provider_profiles
 
 
 @dataclass(frozen=True)
@@ -119,7 +119,7 @@ def rank_providers(
     available_set = (
         frozenset(available)
         if available is not None
-        else frozenset(p.name for p in provider_profiles())
+        else frozenset(available_providers())
     )
     candidates = [
         p for p in provider_profiles()
