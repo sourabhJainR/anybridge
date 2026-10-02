@@ -188,6 +188,18 @@ class PageBridge:
             await asyncio.sleep(settle)
         return self
 
+    async def network_policy(self) -> dict:
+        """Return the safe local network policy and blocked dependency hosts."""
+        return self._guard.policy()
+
+    async def trust_host(self, host: str) -> dict:
+        """Explicitly trust one host for the current browser session."""
+        normalized = host.strip().rstrip(".").casefold()
+        if not normalized or "/" in normalized or ":" in normalized:
+            raise ValueError("Provide a hostname, not a URL or port.")
+        self._guard.allow_hosts((normalized,))
+        return self._guard.policy()
+
     @property
     def started(self) -> bool:
         """Whether the browser session has been started."""
