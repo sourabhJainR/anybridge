@@ -72,6 +72,8 @@ def publish_tools(tools: list[dict], page_url: str | None) -> tuple[list[dict], 
                     f"[{signature}] {raw_description}"
                 ).strip(),
                 "inputSchema": deepcopy(schema),
+                "annotations": deepcopy(raw.get("annotations") if isinstance(raw.get("annotations"), dict) else {}),
+                "origin": raw.get("origin") or origin,
                 "_anybridge": {
                     "origin": origin,
                     "originalName": original,
