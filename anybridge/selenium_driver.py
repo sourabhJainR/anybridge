@@ -112,6 +112,68 @@ class SeleniumDriver:
         await self._run(self._driver.get,url); self._injected=False; await self._inject()
         return await self.current_site()
 
+    async def read_page(self, selector=None, max_chars=20000, pages=None):
+        return await self.snapshot(interactive_only=False, selector=selector, max_chars=max_chars)
+
+    async def list_links(self, filter_text=None, limit=100):
+        await self._inject()
+        links=await self._run(self._driver.execute_script, "return [...document.querySelectorAll('a[href]')].map(a=>({text:(a.innerText||a.textContent||'').trim(),url:a.href}));")
+        if filter_text:
+            q=filter_text.casefold(); links=[x for x in links if q in x["text"].casefold() or q in x["url"].casefold()]
+        return links[:limit]
+
+    async def list_forms(self):
+        await self._inject()
+        return await self._run(self._driver.execute_script, "return [...document.forms].map((f,i)=>({index:i,action:f.action,method:f.method,fields:[...f.elements].map(e=>({name:e.name,type:e.type,value:e.value}))}));")
+
+    async def click(self,target):
+        return await self.click_text(target)
+
+    async def type_text(self,target,text,press_enter=False):
+        return await self.fill_label(target,text) if not press_enter else await self.fill_ref(target,text,press_enter=True)
+
+    async def submit_form(self,index,fields):
+        script="const f=document.forms[arguments[0]]; if(!f) throw new Error('Form not found'); for(const [k,v] of Object.entries(arguments[1])) { const e=f.elements[k]; if(e) e.value=v; } f.requestSubmit();"
+        await self._run(self._driver.execute_script,script,index,fields)
+        return await self.snapshot()
+
+    async def discover_tools(self,timeout=30,reload_on_failure=False):
+        await self._inject()
+        return await self.list_tools()
+
+    async def reset(self):
+        await self.close()
+        return "Selenium browser session reset."
+
+    async def storage_snapshot(self,origin=None):
+        cookies=await self._run(self._driver.get_cookies)
+        storage=await self._run(self._driver.execute_script,"return {...localStorage};")
+        return {"cookies":cookies,"origins":{origin or self.current_url:{"localStorage":storage,"sessionStorage":{}}}}
+
+    async def load_storage_snapshot(self,state,target):
+        await self.navigate(target)
+        for cookie in state.get("cookies",[]):
+            try: await self._run(self._driver.add_cookie,cookie)
+            except Exception: pass
+        return await self.current_site()
+
+    async def begin_recording(self):
+        self._recording=[]; self._recording_start_url=self.current_url
+
+    @property
+    def recording_start_url(self):
+        return getattr(self,"_recording_start_url",None)
+
+    def end_recording(self):
+        return getattr(self,"_recording",[])
+
+    async def run_recorded_step(self,step,variables):
+        action=step.get("action");target=step.get("target") or {}
+        if action=="click": return await self.click_text(target.get("name") or target.get("text") or target.get("selector"))
+        if action=="fill": return await self.fill_label(target.get("name") or target.get("text") or target.get("selector"),str(variables[step["variable"]]))
+        if action=="press": return await self.press_key(step.get("key") or "ENTER")
+        raise ValueError(f'Unsupported workflow action: {action!r}')
+
     async def current_site(self):
         if not self._started:return {}
         return await self._run(lambda:{"url":self._driver.current_url,"title":self._driver.title})
