@@ -13,6 +13,7 @@ from .repositories import PreparedRepository, RepositoryManager, RepositoryStore
 from .sites import SiteStore
 from .webmcp import publish_tools
 from .tool_trust import ToolTrustRegistry
+from .content_boundary import wrap_tool_output
 from .workflows import WorkflowStore
 
 BUILTIN_TOOLS = [
@@ -764,11 +765,24 @@ async def call_builtin(
             )
         try:
             result = await bridge.call_tool(original_name, args.get("arguments") or {})
-        except Exception:
+        except Exception as exc:
             registry.record_outcome(assessment.origin, assessment.name, False)
-            raise
+            envelope = wrap_tool_output(
+                origin=assessment.origin,
+                name=assessment.name,
+                value=str(exc),
+                untrusted=True,
+            )
+            raise RuntimeError(json.dumps(envelope.to_dict(), ensure_ascii=False)) from exc
         registry.record_outcome(assessment.origin, assessment.name, True)
-        return result if isinstance(result, str) else json.dumps(result, ensure_ascii=False)
+        envelope = wrap_tool_output(
+            origin=assessment.origin,
+            name=assessment.name,
+            value=result,
+            untrusted=assessment.output_untrusted,
+            high_risk=assessment.risk.value == "consequential",
+        )
+        return json.dumps(envelope.to_dict(), ensure_ascii=False)
     if name == "list_saved_sites":
         saved = sites.list()
         if not saved:
