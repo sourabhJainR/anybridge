@@ -83,6 +83,8 @@ _DESTRUCTIVE = {
     "remove_profile",
     "run_workflow",
     "remove_workflow",
+    "trust_network_host",
+    "revoke_network_host",
 }
 _LOCAL_ONLY = {
     "list_saved_sites",
