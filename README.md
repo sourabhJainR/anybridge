@@ -416,6 +416,40 @@ execute → checkpoint → interruption → restore state → revalidate → re-
 Playwright supports browser-context storage snapshots for cookies/local storage and related state, but persisted state can contain authentication material. AnyBridge therefore keeps checkpoint metadata separate from browser credentials; callers can explicitly use the existing profile/storage facilities when authentication restoration is required. citeturn0search0turn0search5
 
 
+### WebMCP content / prompt-injection boundary
+
+Page-controlled WebMCP metadata and results are **data, never AnyBridge/system instructions**. AnyBridge now makes that distinction structural before content is returned to an agent:
+
+- published tool definitions use a static, non-instructional description;
+- the original page description/schema/annotations are retained inside an `_anybridge.content_boundary` envelope marked `trust=untrusted` and `instruction_authority=none`;
+- tool results are wrapped in a `webmcp_tool_output` envelope;
+- normal results receive nonce-based spotlighting;
+- results marked `untrustedContentHint` or associated with higher-risk execution are Base64-encoded for stronger isolation;
+- boundary markers supplied by page content are neutralized before spotlighting;
+- failures are also returned/recorded as quarantined WebMCP data.
+
+This is deliberately a **boundary**, not a prompt-injection detector. AnyBridge does not claim that it can prove arbitrary page text is benign. The consuming agent can inspect the envelope as data while keeping system/user instructions in a separate trust class.
+
+The resulting flow is:
+
+```text
+page metadata
+    ↓
+provenance + risk assessment
+    ↓
+quarantine / structural envelope
+    ↓
+agent-visible data boundary
+    ↓
+tool execution
+    ↓
+quarantined result
+    ↓
+outcome telemetry
+```
+
+For higher-risk WebMCP output, the stronger encoding path follows current browser security guidance that recommends spotlighting untrusted content and using encoding where stronger isolation is warranted. The `untrustedContentHint` annotation is treated as a security signal, not as proof of safety.
+
 ### WebMCP capability trust and tool provenance
 
 AnyBridge treats a website's WebMCP capability definition as observable, changeable input rather than implicit authorization. Each discovered tool is bound to its **origin + name + schema fingerprint + description fingerprint + safety annotations**. A bounded in-memory `ToolTrustRegistry` detects first-seen capabilities and definition drift without persisting page data or executable code.
