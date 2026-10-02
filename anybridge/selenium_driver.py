@@ -1,6 +1,7 @@
 """Selenium/WebDriver provider with the same async AnyBridge capability surface."""
 from __future__ import annotations
 import asyncio, base64, time
+from urllib.parse import urlsplit
 from pathlib import Path
 from .security import NetworkGuard
 from .sites import normalize_url
