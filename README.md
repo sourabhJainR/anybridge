@@ -384,3 +384,18 @@ feedback = record_remediation_outcome(
 # Feed feedback.execution_observation into the next execution decision
 # and feedback.decomposition_observation into the next decomposition decision.
 ```
+
+
+### Self-healing execution kernel
+
+AnyBridge includes standalone bounded recovery primitives for stale or changed browser targets. `TargetFingerprint` and `rank_target_candidates()` compare semantic properties such as role, accessible name, text, label, tag, and href. `decide_target_recovery()` only proposes automatic re-identification when confidence and candidate separation exceed a threshold; ambiguous targets fall back to a fresh snapshot instead of guessing.
+
+`ExecutionJournal` provides a bounded local execution history that records actions, failures, remediation identifiers, observations, and evidence. It is intentionally in-memory and exportable: callers can persist it wherever appropriate, while AnyBridge remains independent of any orchestrator.
+
+The recovery boundary is:
+
+```text
+stale target → semantic candidate ranking → confidence gate → re-identify OR refresh snapshot → caller verifies outcome
+```
+
+AnyBridge never silently changes an ambiguous target and does not execute external remediation policy on the caller's behalf.
