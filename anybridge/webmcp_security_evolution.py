@@ -163,7 +163,7 @@ class SecurityEvolutionStore:
 
     def effectiveness(self): return tuple(sorted(self._effectiveness.values(),key=lambda x:x.signature))
     def regressions(self):
-        return tuple(sorted((DefenseRegression(x.attack_class,x.defense,x.block_rate,x.baseline_rate if hasattr(x,"baseline_rate") else self.baseline_min_rate,x.attempts,
+        return tuple(sorted((DefenseRegression(x.attack_class,x.defense,x.block_rate,self.baseline_min_rate,x.attempts,
             f"observed block rate {x.block_rate:.3f} fell below regression threshold {self.regression_rate:.3f} after an established baseline")
             for x in self._effectiveness.values() if x.regression),key=lambda x:(x.attack_class,x.defense)))
 
