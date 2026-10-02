@@ -213,6 +213,18 @@ def main():
                 "Use only for third-party CDN, analytics, telemetry, or authentication hosts you trust."
             ),
         )
+        p.add_argument(
+            "--provider",
+            choices=["playwright", "selenium"],
+            default="playwright",
+            help="Browser provider (default: playwright)",
+        )
+        p.add_argument(
+            "--browser",
+            choices=["chrome", "firefox", "edge"],
+            default="chrome",
+            help="Browser used by the selected provider (default: chrome)",
+        )
 
     p_list = sub.add_parser("list", help="List the tools available on a page")
     common(p_list)
