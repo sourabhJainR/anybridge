@@ -95,7 +95,7 @@ def decide_execution_adaptive(
     task_class: str = "default",
     resources: ResourceObservation | None = None,
 ) -> tuple[ExecutionDecision, tuple[CounterfactualPlan, ...]]:
-    """Choose a primary plan and expose safe alternatives for HWS evaluation."""
+    """Choose a primary plan and expose safe alternatives for caller evaluation."""
     primary = decide_execution(
         required=required,
         browser=browser,
