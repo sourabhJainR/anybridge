@@ -37,7 +37,10 @@ def _print_group(tools: list[dict]):
 
 
 async def _list(args):
-    async with PageBridge(args.url, headless=not args.headed, allowed_hosts=args.allow_host) as bridge:
+    provider = SeleniumDriver if args.provider == "selenium" else PageBridge
+    kwargs = {"headless": not args.headed, "allowed_hosts": args.allow_host}
+    if args.provider == "selenium": kwargs["browser"] = args.browser
+    async with provider(args.url, **kwargs) as bridge:
         raw = await bridge.discover_tools(
             timeout=args.wait, reload_on_failure=True
         )
@@ -58,6 +61,8 @@ async def _call(args):
             headless=not args.headed,
             wait=args.wait,
             allowed_hosts=args.allow_host,
+            provider=args.provider,
+            browser=args.browser,
         )
         if args.tool in {"navigate", "smart_read"}:
             tool_args.setdefault("url", args.url)
@@ -66,7 +71,10 @@ async def _call(args):
         finally:
             await runtime.close()
         return
-    async with PageBridge(args.url, headless=not args.headed, allowed_hosts=args.allow_host) as bridge:
+    provider = SeleniumDriver if args.provider == "selenium" else PageBridge
+    kwargs = {"headless": not args.headed, "allowed_hosts": args.allow_host}
+    if args.provider == "selenium": kwargs["browser"] = args.browser
+    async with provider(args.url, **kwargs) as bridge:
         raw = await bridge.discover_tools(
             timeout=args.wait, reload_on_failure=True
         )
