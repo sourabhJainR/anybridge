@@ -1,6 +1,6 @@
 """Failure-aware decomposition suggestions for the execution fabric.
 
-This module is advisory only. HWS remains responsible for decomposition,
+This module is advisory only. caller remains responsible for decomposition,
 scheduling, execution, persistence and learning.
 """
 from __future__ import annotations
@@ -79,7 +79,7 @@ def recommend_decomposition(
     task_class: str = "default",
     max_parallelism: int | None = None,
 ) -> DecompositionDecision:
-    """Recommend how HWS should split or stage work using observed failures."""
+    """Recommend how caller should split or stage work using observed failures."""
     observations = _history(history, task_class)
     failure_signal = sum(o.failure_signal for o in observations)
     network_signal = sum(o.network_failures for o in observations)
@@ -146,7 +146,7 @@ def decomposition_telemetry(
     task_id: str | None = None,
     execution_id: str | None = None,
 ) -> dict[str, object]:
-    """Return a stable record for HWS evidence/learning ingestion."""
+    """Return a stable record for caller evidence/learning ingestion."""
     return {
         "task_id": task_id,
         "execution_id": execution_id,
