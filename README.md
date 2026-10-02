@@ -416,6 +416,31 @@ execute → checkpoint → interruption → restore state → revalidate → re-
 Playwright supports browser-context storage snapshots for cookies/local storage and related state, but persisted state can contain authentication material. AnyBridge therefore keeps checkpoint metadata separate from browser credentials; callers can explicitly use the existing profile/storage facilities when authentication restoration is required. citeturn0search0turn0search5
 
 
+### WebMCP capability trust and tool provenance
+
+AnyBridge treats a website's WebMCP capability definition as observable, changeable input rather than implicit authorization. Each discovered tool is bound to its **origin + name + schema fingerprint + description fingerprint + safety annotations**. A bounded in-memory `ToolTrustRegistry` detects first-seen capabilities and definition drift without persisting page data or executable code.
+
+The registry tracks:
+
+- `new` — capability has not been explicitly trusted in this session.
+- `trusted` — the caller explicitly trusted the unchanged capability.
+- `changed` — schema, description, origin, or safety annotations changed.
+- `untrusted_output` — the tool declares that its output contains untrusted content.
+- `blocked` — the capability is malformed and cannot be safely identified.
+
+WebMCP annotations such as `readOnlyHint`, `consequentialHint`, and `untrustedContentHint` are incorporated into the local action policy. Consequential tools require confirmation; untrusted outputs remain an explicit trust boundary. AnyBridge does not treat a site's metadata as permission to execute a tool.
+
+Use `tool_trust` to inspect the current page's capabilities and `inspect_webmcp_tool` to assess/trust one capability. A WebMCP call is allowed only after its current definition passes the provenance policy; definition changes force revalidation rather than silently reusing prior trust.
+
+The execution boundary is:
+
+```text
+discover → fingerprint → bind to origin → compare history → assess risk
+        → explicit trust/revalidation → execute → record outcome
+```
+
+The registry is intentionally local and caller-owned. Long-lived persistence, promotion/rollback, and cross-session learning remain outside AnyBridge.
+
 ### Action risk and retry policy
 
 AnyBridge exposes a deterministic `assess_action` policy primitive before consequential browser operations. Actions are classified as read, navigation, mutation, consequential, or unknown. The policy distinguishes bounded automatic retries from state revalidation and explicit confirmation.
