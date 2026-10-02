@@ -182,6 +182,10 @@ class PageBridge:
         # All browser egress is checked. Private targets enter isolation;
         # explicitly approved dependency hosts remain available to the app.
         await self._context.route("**/*", self._guard.route)
+        # WebSockets use a separate Playwright routing API. Guard them too
+        # when the installed Playwright exposes route_web_socket().
+        if hasattr(self._context, "route_web_socket"):
+            await self._context.route_web_socket("**/*", self._guard_websocket)
         await self._context.add_init_script(SHIM)
         await self._context.add_init_script(PAGETOOLS)
         # Links with target=_blank open a new tab; follow it as the current page.
@@ -191,6 +195,15 @@ class PageBridge:
             await self._goto(self.url)
             await asyncio.sleep(settle)
         return self
+
+    async def _guard_websocket(self, websocket) -> None:
+        """Apply the same hostname policy to WebSocket connections."""
+        try:
+            await self._guard.assert_url(websocket.url)
+        except Exception:
+            await websocket.close(code=1008, reason="AnyBridge network policy blocked")
+            return
+        await websocket.connect_to_server()
 
     async def network_policy(self) -> dict:
         """Return the safe local network policy and blocked dependency hosts."""
