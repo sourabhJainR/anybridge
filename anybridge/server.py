@@ -176,7 +176,8 @@ class BridgeRuntime:
         self.profiles = profiles or ProfileStore()
         self.workflows = workflows or WorkflowStore()
         self.adaptive = adaptive or AdaptiveReader(
-            allow_private_network=allow_private_network
+            allow_private_network=allow_private_network,
+            allowed_hosts=self.allowed_hosts,
         )
         self.bridge = bridge or PageBridge(
             url,
