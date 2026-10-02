@@ -12,6 +12,7 @@ from mcp.server.stdio import stdio_server
 
 from .browser import PageBridge
 from .selenium_driver import SeleniumDriver
+from .providers import select_provider
 from .builtins import BUILTIN_NAMES, BUILTIN_TOOLS, call_builtin
 from .engines import AdaptiveReader
 from .profiles import ProfileStore
@@ -185,19 +186,25 @@ class BridgeRuntime:
             allowed_hosts=self.allowed_hosts,
         )
         if bridge is not None:
+            self.provider = getattr(bridge, "provider", provider)
+            self.browser = browser
             self.bridge = bridge
-        elif provider.casefold() == "selenium":
-            self.bridge = SeleniumDriver(
-                url, headless=headless, allow_private_network=allow_private_network,
-                allowed_hosts=self.allowed_hosts, browser=browser,
-            )
-        elif provider.casefold() == "playwright":
-            self.bridge = PageBridge(
-                url, headless=headless, allow_private_network=allow_private_network,
-                allowed_hosts=self.allowed_hosts,
-            )
         else:
-            raise ValueError(f"Unsupported browser provider: {provider!r}")
+            self.provider = select_provider(
+                preferred=None if provider == "auto" else provider,
+                browser=None if browser == "auto" else browser,
+            )
+            self.browser = browser
+            if self.provider == "selenium":
+                self.bridge = SeleniumDriver(
+                    url, headless=headless, allow_private_network=allow_private_network,
+                    allowed_hosts=self.allowed_hosts, browser="chrome" if browser == "auto" else browser,
+                )
+            else:
+                self.bridge = PageBridge(
+                    url, headless=headless, allow_private_network=allow_private_network,
+                    allowed_hosts=self.allowed_hosts,
+                )
         self._start_lock = asyncio.Lock()
 
     async def ensure_browser(self) -> None:
@@ -278,7 +285,7 @@ class BridgeRuntime:
         await self.bridge.close()
 
 
-def create_server(runtime: BridgeRuntime | None = None, *, provider: str = "playwright", browser: str = "chrome") -> Server:
+def create_server(runtime: BridgeRuntime | None = None, *, provider: str = "auto", browser: str = "auto") -> Server:
     """Build the low-level MCP server around a runtime."""
 
     @asynccontextmanager
@@ -375,8 +382,8 @@ async def serve(
     wait: float = 5.0,
     builtins: bool = True,
     allowed_hosts: tuple[str, ...] | list[str] = (),
-    provider: str = "playwright",
-    browser: str = "chrome",
+    provider: str = "auto",
+    browser: str = "auto",
 ) -> None:
     """Run the AnyBridge MCP server over stdio."""
     if not url and not builtins:
