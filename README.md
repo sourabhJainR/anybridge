@@ -197,6 +197,37 @@ AnyBridge also blocks Service Worker registration in the browser context used
 for network isolation. This keeps browserContext routing as the primary
 network-control boundary for page requests.
 
+### Resource-aware counterfactual planning
+
+`decide_execution_adaptive()` extends the fabric with optional resource signals:
+context budget, estimated duration, CPU/memory availability, queue depth,
+concurrency capacity, and evidence value. Resource pressure can reduce concurrency,
+but never overrides destructive/high-risk serial execution.
+
+The function also returns safe counterfactual plans such as serial instead of
+parallel execution, deeper verification, or alternate-provider escalation. These
+are alternatives for HWS to evaluate against realized outcomes; AnyBridge does not
+execute them or persist the learning decision.
+
+```python
+from anybridge.adaptive_fabric import ResourceObservation, decide_execution_adaptive
+
+decision, alternatives = decide_execution_adaptive(
+    required=["bdd"],
+    independent_work=4,
+    resources=ResourceObservation(
+        cpu_available=0.75,
+        memory_available_mb=4096,
+        queue_depth=1,
+        concurrency_capacity=4,
+        evidence_value=0.8,
+    ),
+)
+```
+
+`decision_telemetry()` emits a stable JSON-friendly record containing the chosen
+plan and resource signals so HWS can merge it into its canonical Evidence Envelope.
+
 ## Limits
 
 Aggressive anti-bot walls can still refuse a headless browser. When that
@@ -281,7 +312,7 @@ decision = decide_execution(
     required=["bdd"],
     risk="medium",
     independent_work=4,
-    execution_history=[...],
+    history=[...],
 )
 ```
 
