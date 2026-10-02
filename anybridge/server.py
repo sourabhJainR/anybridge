@@ -164,8 +164,10 @@ class BridgeRuntime:
         adaptive: AdaptiveReader | None = None,
         bridge: PageBridge | None = None,
         allow_private_network: bool = True,
+        allowed_hosts: tuple[str, ...] | list[str] = (),
     ) -> None:
         self.initial_url = url
+        self.allowed_hosts = tuple(allowed_hosts)
         self.wait = wait
         self.builtins = builtins
         self.sites = sites or SiteStore()
@@ -180,6 +182,7 @@ class BridgeRuntime:
             url,
             headless=headless,
             allow_private_network=allow_private_network,
+            allowed_hosts=self.allowed_hosts,
         )
         self._start_lock = asyncio.Lock()
 
@@ -357,12 +360,13 @@ async def serve(
     headless: bool = True,
     wait: float = 5.0,
     builtins: bool = True,
+    allowed_hosts: tuple[str, ...] | list[str] = (),
 ) -> None:
     """Run the AnyBridge MCP server over stdio."""
     if not url and not builtins:
         raise ValueError("A URL is required when --no-builtins is used.")
 
-    runtime = BridgeRuntime(url, headless=headless, wait=wait, builtins=builtins)
+    runtime = BridgeRuntime(url, headless=headless, wait=wait, builtins=builtins, allowed_hosts=allowed_hosts)
     server = create_server(runtime)
     try:
         async with stdio_server() as (read, write):
