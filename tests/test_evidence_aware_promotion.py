@@ -29,8 +29,7 @@ def test_decay_quarantines_then_retires():
     s.ingest([obs("cap","a"),obs("cap","b")])
     s.ingest([obs("cap","a"),obs("cap","b")])
     assert s.ingest([obs("cap","a",False,0.5),obs("cap","b",False,0.5)])[0].status=="quarantined"
-    # Explicit quarantine is terminal: this prevents silent re-promotion after decay.
-    assert s.decisions()[0].status=="quarantined"
+    assert s.ingest([obs("cap","a",False,0.5),obs("cap","b",False,0.5)])[0].status=="retired"
 
 def test_bounds_and_determinism():
     s=EvidenceAwarePromotionStore(max_observations=2)
