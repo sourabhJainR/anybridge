@@ -24,7 +24,7 @@ from .capability_curriculum import CapabilityCurriculumStore, CurriculumCandidat
 from .capability_calibration import CapabilityCalibrationStore, CalibrationObservation
 from .holdout_generation import HoldoutGenerator, BenchmarkObservation
 from .holdout_benchmark import HoldoutBenchmark
-from .capability_promotion import CanaryEvidence, CapabilityPromotionStore, HoldoutEvidence
+from .evidence_aware_promotion import EvidenceAwarePromotionStore, CohortEvidence
 from .workflows import WorkflowStore
 
 BUILTIN_TOOLS = [
@@ -382,14 +382,14 @@ BUILTIN_TOOLS = [
         "inputSchema": {"type":"object","properties":{"capabilities":{"type":"array"},"target_domains":{"type":"array"},"observations":{"type":"array"}},"required":["capabilities","target_domains"]},
     },
     {
+        "name": "capability_evidence_promotion",
+        "description": "Evaluate multi-cohort capability evidence for promotion, canary graduation, performance decay, quarantine, and retirement. Report only; no execution or authorization.",
+        "inputSchema": {"type":"object","properties":{"observations":{"type":"array"},"capability_id":{"type":"string"}},"required":["observations"]},
+    },
+    {
         "name": "capability_holdout_benchmark",
         "description": "Aggregate independently scored generated holdouts into benchmark evidence. Benchmark results never auto-promote capabilities.",
         "inputSchema": {"type":"object","properties":{"cases":{"type":"array"},"outcomes":{"type":"array"}},"required":["cases","outcomes"]},
-    },
-    {
-        "name": "capability_promotion_decision",
-        "description": "Evaluate caller-supplied independent holdout and canary evidence for capability promotion or rollback. Does not execute or authorize the capability.",
-        "inputSchema": {"type":"object","properties":{"holdout":{"type":"object"},"canary":{"type":"array"}},"required":["holdout"]},
     },
     {
         "name": "webmcp_security_evaluation",
@@ -950,6 +950,21 @@ async def call_builtin(
                 str(item.get("execution_id") or ""), str(item.get("details") or ""),
             ))
         return json.dumps(generator.export(), indent=2, ensure_ascii=False)
+    if name == "capability_evidence_promotion":
+        store = EvidenceAwarePromotionStore()
+        for item in args.get("observations") or []:
+            if not isinstance(item, dict):
+                raise ValueError("Each promotion observation must be an object.")
+            store.ingest([CohortEvidence(
+                str(item["capability_id"]), str(item["cohort_id"]), bool(item["passed"]),
+                float(item.get("confidence", item.get("evidence_confidence", 0.0))),
+                str(item.get("domain") or ""), str(item.get("benchmark_family") or ""),
+                str(item.get("independence_key") or ""), str(item.get("execution_id") or ""),
+            )])
+        if args.get("capability_id"):
+            return json.dumps(store.decide(str(args["capability_id"])).to_dict(), indent=2, ensure_ascii=False)
+        return json.dumps([x.to_dict() for x in store.decisions()], indent=2, ensure_ascii=False)
+
     if name == "capability_holdout_benchmark":
         from .holdout_generation import HoldoutCase, BenchmarkObservation
         benchmark = HoldoutBenchmark()
@@ -973,31 +988,6 @@ async def call_builtin(
                 str(item.get("details") or ""),
             ))
         return json.dumps(benchmark.export() | {"results":[x.to_dict() for x in benchmark.ingest(cases,outcomes)]},indent=2,ensure_ascii=False)
-    if name == "capability_promotion_decision":
-        holdout = args.get("holdout") or {}
-        if not isinstance(holdout, dict):
-            raise ValueError("holdout must be an object.")
-        store = CapabilityPromotionStore()
-        decision = store.evaluate_holdout(HoldoutEvidence(
-            str(holdout["capability_id"]),
-            int(holdout["attempts"]),
-            float(holdout["pass_rate"]),
-            float(holdout.get("confidence", 0.0)),
-            bool(holdout.get("independent", True)),
-        ))
-        if decision.state.status == "canary":
-            observations = []
-            for item in args.get("canary") or []:
-                if not isinstance(item, dict):
-                    raise ValueError("Each canary observation must be an object.")
-                observations.append(CanaryEvidence(
-                    str(item.get("capability_id") or holdout["capability_id"]),
-                    bool(item["passed"]),
-                    float(item.get("evidence_confidence", 0.0)),
-                ))
-            if observations:
-                decision = store.evaluate_canary(str(holdout["capability_id"]), observations)
-        return json.dumps(decision.to_dict(), indent=2, ensure_ascii=False)
     if name == "webmcp_security_evaluation":
         return json.dumps(evaluate_webmcp_security().to_dict(), indent=2, ensure_ascii=False)
     if name == "call_webmcp_tool":
