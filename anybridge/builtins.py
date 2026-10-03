@@ -24,8 +24,7 @@ from .capability_curriculum import CapabilityCurriculumStore, CurriculumCandidat
 from .capability_calibration import CapabilityCalibrationStore, CalibrationObservation
 from .holdout_generation import HoldoutGenerator, BenchmarkObservation
 from .holdout_benchmark import HoldoutBenchmark
-from .capability_promotion import CanaryEvidence, CapabilityPromotionStore, HoldoutEvidence
-from .evidence_aware_promotion import CohortEvidence, EvidenceAwarePromotionStore
+from .capability_promotion import CanaryEvidence, CapabilityPromotionStore, CohortEvidence, HoldoutEvidence
 from .workflows import WorkflowStore
 
 BUILTIN_TOOLS = [
@@ -390,12 +389,7 @@ BUILTIN_TOOLS = [
     {
         "name": "capability_promotion_decision",
         "description": "Evaluate caller-supplied independent holdout and canary evidence for capability promotion or rollback. Does not execute or authorize the capability.",
-        "inputSchema": {"type":"object","properties":{"holdout":{"type":"object"},"canary":{"type":"array"}},"required":["holdout"]},
-    },
-    {
-        "name": "capability_evidence_promotion",
-        "description": "Evaluate complete, multi-cohort capability evidence for promotion, canary graduation, performance decay, quarantine, or retirement. Report only; no execution or authorization.",
-        "inputSchema": {"type":"object","properties":{"observations":{"type":"array"}},"required":["observations"]},
+        "inputSchema": {"type":"object","properties":{"holdout":{"type":"object"},"cohorts":{"type":"array"},"canary":{"type":"array"}},"required":["holdout"]},
     },
     {
         "name": "webmcp_security_evaluation",
@@ -984,13 +978,27 @@ async def call_builtin(
         if not isinstance(holdout, dict):
             raise ValueError("holdout must be an object.")
         store = CapabilityPromotionStore()
-        decision = store.evaluate_holdout(HoldoutEvidence(
-            str(holdout["capability_id"]),
-            int(holdout["attempts"]),
-            float(holdout["pass_rate"]),
-            float(holdout.get("confidence", 0.0)),
-            bool(holdout.get("independent", True)),
-        ))
+        cohort_items = args.get("cohorts") or []
+        if cohort_items:
+            observations = []
+            for item in cohort_items:
+                if not isinstance(item, dict):
+                    raise ValueError("Each cohort observation must be an object.")
+                observations.append(CohortEvidence(
+                    str(item["capability_id"]), str(item["cohort_id"]), bool(item["passed"]),
+                    float(item.get("confidence", item.get("evidence_confidence", 0.0))),
+                    str(item.get("domain") or ""), str(item.get("benchmark_family") or ""),
+                    str(item.get("independence_key") or ""),
+                ))
+            decision = store.evaluate_multi_cohort(observations)
+        else:
+            decision = store.evaluate_holdout(HoldoutEvidence(
+                str(holdout["capability_id"]),
+                int(holdout["attempts"]),
+                float(holdout["pass_rate"]),
+                float(holdout.get("confidence", 0.0)),
+                bool(holdout.get("independent", True)),
+            ))
         if decision.state.status == "canary":
             observations = []
             for item in args.get("canary") or []:
@@ -1004,25 +1012,6 @@ async def call_builtin(
             if observations:
                 decision = store.evaluate_canary(str(holdout["capability_id"]), observations)
         return json.dumps(decision.to_dict(), indent=2, ensure_ascii=False)
-    if name == "capability_evidence_promotion":
-        store = EvidenceAwarePromotionStore()
-        observations = []
-        for item in args.get("observations") or []:
-            if not isinstance(item, dict):
-                raise ValueError("Each promotion observation must be an object.")
-            observations.append(CohortEvidence(
-                str(item["capability_id"]),
-                str(item["cohort_id"]),
-                str(item["round_id"]),
-                bool(item["passed"]),
-                float(item.get("confidence", item.get("evidence_confidence", 0.0))),
-                str(item.get("domain") or ""),
-                str(item.get("benchmark_family") or ""),
-                str(item.get("independence_key") or ""),
-                str(item.get("execution_id") or ""),
-            ))
-        store.ingest(observations)
-        return json.dumps([x.to_dict() for x in store.decisions()], indent=2, ensure_ascii=False)
     if name == "webmcp_security_evaluation":
         return json.dumps(evaluate_webmcp_security().to_dict(), indent=2, ensure_ascii=False)
     if name == "call_webmcp_tool":
