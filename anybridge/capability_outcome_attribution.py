@@ -145,7 +145,7 @@ class CapabilityOutcomeAttributionStore:
                     calibration_store=calibration_store,
                     curriculum_store=curriculum_store,
                 ))
-            except ValueError as exc:
+            except (ValueError, KeyError) as exc:
                 rejected.append(str(exc))
         calibration = tuple(calibration_store.results()) if calibration_store is not None else ()
         curriculum = tuple(curriculum_store.rank()) if curriculum_store is not None else ()
