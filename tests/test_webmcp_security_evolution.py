@@ -34,4 +34,22 @@ class WebMCPSecurityEvolutionTests(unittest.TestCase):
     def test_dimensions_retained(self):
         o=self.obs(False); self.assertEqual((o.provider,o.origin,o.schema_hash),("playwright","https://example.com","schema"))
 
+    def test_unified_pipeline_replays_into_learning_and_evolution(self):
+        from anybridge.webmcp_security_evolution import evaluate_and_evolve_security
+        report = evaluate_and_evolve_security(generate_counter_cases=True)
+        self.assertTrue(report.evaluation["passed"])
+        self.assertEqual(report.learning["observations"], 8)
+        self.assertTrue(report.learning["replay_ready"])
+        self.assertEqual(report.evolution.regressions, ())
+        self.assertEqual(report.active_corpus, ())
+
+    def test_unified_pipeline_reuses_caller_owned_stores(self):
+        from anybridge.webmcp_learning import SecurityLearningStore
+        from anybridge.webmcp_security_evolution import evaluate_and_evolve_security
+        learning = SecurityLearningStore()
+        evolution = SecurityEvolutionStore()
+        report = evaluate_and_evolve_security(learning_store=learning, evolution_store=evolution, generate_counter_cases=False)
+        self.assertEqual(report.learning["observations"], 8)
+        self.assertEqual(report.evolution, evolution.report())
+
 if __name__=="__main__": unittest.main()

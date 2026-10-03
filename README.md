@@ -621,3 +621,31 @@ Use the built-in webmcp_security_evolution tool with caller-supplied security ob
 Retirement never deletes historical observations: it only removes an obsolete seed from the active replay corpus. A later regression can reactivate that seed. Thresholds are configurable and bounded to keep the behavior deterministic and auditable.
 
 No HWS, model provider, database, scheduler, or external memory system is required. AnyBridge owns the capability-evolution primitives; the caller remains responsible for durable persistence, replay scheduling, execution of security tests, and remediation/authorization.
+
+### Unified WebMCP security evolution pipeline
+
+AnyBridge now exposes a single deterministic pipeline that composes the existing adversarial evaluator, adaptive security learning, and capability-evolution lifecycle:
+
+```text
+evaluate built-in corpus
+        ↓
+security observations
+        ↓
+learn attack/provider/origin/schema/defense pattern
+        ↓
+promote repeated failures
+        ↓
+handoff promoted seeds idempotently
+        ↓
+learn defense effectiveness / regressions
+        ↓
+generate controlled counter-cases
+        ↓
+active replay corpus
+        ↓
+caller executes/replays and feeds outcomes back
+```
+
+`evaluate_and_evolve_security()` returns the evaluator result, learning report, evolution report, and current active replay corpus. The `webmcp_security_pipeline` builtin exposes the same report-only operation.
+
+The pipeline deliberately does **not** execute generated counter-cases, invoke website tools, authorize consequential actions, persist outside the supplied stores, or schedule replay. Those remain caller responsibilities. Reusing caller-owned stores preserves seed lifecycle state across evaluations, including retirement and later reactivation.

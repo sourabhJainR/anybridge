@@ -14,7 +14,8 @@ from .sites import SiteStore
 from .webmcp import publish_tools
 from .tool_trust import ToolTrustRegistry
 from .content_boundary import wrap_tool_output
-from .webmcp_security import evaluate_webmcp_security\nfrom .webmcp_security_evolution import DefenseObservation, SecurityEvolutionStore, evolve_security_capabilities
+from .webmcp_security import evaluate_webmcp_security
+from .webmcp_security_evolution import DefenseObservation, SecurityEvolutionStore, evolve_security_capabilities, evaluate_and_evolve_security
 from .workflows import WorkflowStore
 
 BUILTIN_TOOLS = [
@@ -315,6 +316,11 @@ BUILTIN_TOOLS = [
             },
             "required": ["name"],
         },
+    },
+    {
+        "name": "webmcp_security_pipeline",
+        "description": "Run AnyBridge deterministic WebMCP security evaluation through learning and capability evolution. Report only; generated cases are never executed.",
+        "inputSchema": {"type": "object", "properties": {"provider": {"type": "string"}, "origin": {"type": "string"}, "defense": {"type": "string"}, "generate_counter_cases": {"type": "boolean", "default": true}}},
     },
     {
         "name": "webmcp_security_evolution",
@@ -750,6 +756,9 @@ async def call_builtin(
         match["origin"] = match.get("origin") or origin
         assessment = registry.observe(match, trusted=bool(args.get("trust")))
         return json.dumps(assessment.to_dict(), indent=2, ensure_ascii=False)
+    if name == "webmcp_security_pipeline":
+        report = evaluate_and_evolve_security(provider=args.get("provider", "playwright"), origin=args.get("origin", "https://trusted.example"), defense=args.get("defense", "content_boundary"), generate_counter_cases=bool(args.get("generate_counter_cases", True)))
+        return json.dumps(report.to_dict(), indent=2, ensure_ascii=False)
     if name == "webmcp_security_evolution":
         store = SecurityEvolutionStore()
         observations = []
