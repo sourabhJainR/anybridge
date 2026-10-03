@@ -23,6 +23,7 @@ from .capability_transfer import CapabilityTransferStore, TransferObservation
 from .capability_curriculum import CapabilityCurriculumStore, CurriculumCandidate, CurriculumObservation
 from .capability_calibration import CapabilityCalibrationStore, CalibrationObservation
 from .holdout_generation import HoldoutGenerator, BenchmarkObservation
+from .holdout_benchmark import HoldoutBenchmark
 from .workflows import WorkflowStore
 
 BUILTIN_TOOLS = [
@@ -378,6 +379,11 @@ BUILTIN_TOOLS = [
         "name": "capability_holdout_generation",
         "description": "Generate bounded provenance-marked holdout cases from capability metadata and accept only independently scored outcomes. Generated cases are data, never executable instructions.",
         "inputSchema": {"type":"object","properties":{"capabilities":{"type":"array"},"target_domains":{"type":"array"},"observations":{"type":"array"}},"required":["capabilities","target_domains"]},
+    },
+    {
+        "name": "capability_holdout_benchmark",
+        "description": "Aggregate independently scored generated holdouts into benchmark evidence. Benchmark results never auto-promote capabilities.",
+        "inputSchema": {"type":"object","properties":{"cases":{"type":"array"},"outcomes":{"type":"array"}},"required":["cases","outcomes"]},
     },
     {
         "name": "webmcp_security_evaluation",
@@ -938,6 +944,29 @@ async def call_builtin(
                 str(item.get("execution_id") or ""), str(item.get("details") or ""),
             ))
         return json.dumps(generator.export(), indent=2, ensure_ascii=False)
+    if name == "capability_holdout_benchmark":
+        from .holdout_generation import HoldoutCase, BenchmarkObservation
+        benchmark = HoldoutBenchmark()
+        cases=[]
+        for item in args.get("cases") or []:
+            if not isinstance(item,dict):
+                raise ValueError("Each benchmark case must be an object.")
+            cases.append(HoldoutCase(
+                str(item["case_id"]),str(item["source_capability_id"]),str(item["target_domain"]),
+                str(item["variation"]),float(item.get("difficulty",.5)),
+                str(item.get("independence_key") or ""),bool(item.get("generated",True)),
+                bool(item.get("executable",False)),str(item.get("provenance") or "unknown"),
+            ))
+        outcomes=[]
+        for item in args.get("outcomes") or []:
+            if not isinstance(item,dict):
+                raise ValueError("Each benchmark outcome must be an object.")
+            outcomes.append(BenchmarkObservation(
+                str(item["case_id"]),bool(item["passed"]),float(item.get("evidence_confidence",0)),
+                bool(item.get("independent",True)),str(item.get("execution_id") or ""),
+                str(item.get("details") or ""),
+            ))
+        return json.dumps(benchmark.export() | {"results":[x.to_dict() for x in benchmark.ingest(cases,outcomes)]},indent=2,ensure_ascii=False)
     if name == "webmcp_security_evaluation":
         return json.dumps(evaluate_webmcp_security().to_dict(), indent=2, ensure_ascii=False)
     if name == "call_webmcp_tool":
