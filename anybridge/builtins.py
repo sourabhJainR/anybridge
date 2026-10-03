@@ -24,6 +24,7 @@ from .capability_curriculum import CapabilityCurriculumStore, CurriculumCandidat
 from .capability_calibration import CapabilityCalibrationStore, CalibrationObservation
 from .holdout_generation import HoldoutGenerator, BenchmarkObservation
 from .holdout_benchmark import HoldoutBenchmark
+from .evidence_aware_promotion import EvidenceAwarePromotionStore, CohortEvidence
 from .workflows import WorkflowStore
 
 BUILTIN_TOOLS = [
@@ -379,6 +380,11 @@ BUILTIN_TOOLS = [
         "name": "capability_holdout_generation",
         "description": "Generate bounded provenance-marked holdout cases from capability metadata and accept only independently scored outcomes. Generated cases are data, never executable instructions.",
         "inputSchema": {"type":"object","properties":{"capabilities":{"type":"array"},"target_domains":{"type":"array"},"observations":{"type":"array"}},"required":["capabilities","target_domains"]},
+    },
+    {
+        "name": "capability_evidence_promotion",
+        "description": "Evaluate multi-cohort capability evidence for promotion, canary graduation, performance decay, quarantine, and retirement. Report only; no execution or authorization.",
+        "inputSchema": {"type":"object","properties":{"observations":{"type":"array"},"capability_id":{"type":"string"}},"required":["observations"]},
     },
     {
         "name": "capability_holdout_benchmark",
@@ -944,6 +950,21 @@ async def call_builtin(
                 str(item.get("execution_id") or ""), str(item.get("details") or ""),
             ))
         return json.dumps(generator.export(), indent=2, ensure_ascii=False)
+    if name == "capability_evidence_promotion":
+        store = EvidenceAwarePromotionStore()
+        for item in args.get("observations") or []:
+            if not isinstance(item, dict):
+                raise ValueError("Each promotion observation must be an object.")
+            store.ingest([CohortEvidence(
+                str(item["capability_id"]), str(item["cohort_id"]), bool(item["passed"]),
+                float(item.get("confidence", item.get("evidence_confidence", 0.0))),
+                str(item.get("domain") or ""), str(item.get("benchmark_family") or ""),
+                str(item.get("execution_id") or ""),
+            )])
+        if args.get("capability_id"):
+            return json.dumps(store.decide(str(args["capability_id"])).to_dict(), indent=2, ensure_ascii=False)
+        return json.dumps([x.to_dict() for x in store.decisions()], indent=2, ensure_ascii=False)
+
     if name == "capability_holdout_benchmark":
         from .holdout_generation import HoldoutCase, BenchmarkObservation
         benchmark = HoldoutBenchmark()
