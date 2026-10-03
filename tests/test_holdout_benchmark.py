@@ -49,3 +49,11 @@ def test_benchmark_preserves_independence_cohort_for_promotion():
     evidence=b.promotion_evidence()
     assert len(evidence) == 2
     assert all(x.independence_key and x.cohort_id for x in evidence)
+
+
+def test_missing_independence_key_is_not_promotion_evidence():
+    from anybridge.holdout_generation import HoldoutCase
+    case = HoldoutCase("case", "cap", "domain", "variation", .5, "")
+    b = HoldoutBenchmark(min_attempts=1)
+    b.ingest([case], [BenchmarkObservation("case", True, 1.0, True)])
+    assert not b.results()
