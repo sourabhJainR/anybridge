@@ -16,6 +16,7 @@ from .tool_trust import ToolTrustRegistry
 from .content_boundary import wrap_tool_output
 from .webmcp_security import evaluate_webmcp_security
 from .webmcp_security_evolution import DefenseObservation, SecurityEvolutionStore, evolve_security_capabilities, evaluate_and_evolve_security
+from .webmcp_replay import SecurityReplayCase, SecurityReplayOutcome, replay_security_corpus
 from .workflows import WorkflowStore
 
 BUILTIN_TOOLS = [
@@ -321,6 +322,11 @@ BUILTIN_TOOLS = [
         "name": "webmcp_security_pipeline",
         "description": "Run AnyBridge deterministic WebMCP security evaluation through learning and capability evolution. Report only; generated cases are never executed.",
         "inputSchema": {"type": "object", "properties": {"provider": {"type": "string"}, "origin": {"type": "string"}, "defense": {"type": "string"}, "generate_counter_cases": {"type": "boolean", "default": true}}},
+    },
+    {
+        "name": "webmcp_security_replay",
+        "description": "Process caller-supplied WebMCP replay outcomes through security learning and evolution.",
+        "inputSchema": {"type": "object", "properties": {"cases": {"type": "array"}, "outcomes": {"type": "array"}, "generate_counter_cases": {"type": "boolean", "default": true}}},
     },
     {
         "name": "webmcp_security_evolution",
@@ -758,6 +764,11 @@ async def call_builtin(
         return json.dumps(assessment.to_dict(), indent=2, ensure_ascii=False)
     if name == "webmcp_security_pipeline":
         report = evaluate_and_evolve_security(provider=args.get("provider", "playwright"), origin=args.get("origin", "https://trusted.example"), defense=args.get("defense", "content_boundary"), generate_counter_cases=bool(args.get("generate_counter_cases", True)))
+        return json.dumps(report.to_dict(), indent=2, ensure_ascii=False)
+    if name == "webmcp_security_replay":
+        cases = [SecurityReplayCase(case_id=str(x.get("case_id") or x.get("id") or ""), attack_id=str(x.get("attack_id") or x.get("id") or ""), attack_class=str(x.get("attack_class") or x.get("category") or "unknown"), provider=str(x.get("provider") or "unknown"), origin=str(x.get("origin") or ""), schema_hash=str(x.get("schema_hash") or ""), defense=str(x.get("defense") or "unknown"), payload=x.get("payload") or {}) for x in (args.get("cases") or []) if isinstance(x, dict)]
+        outcomes = [SecurityReplayOutcome(case_id=str(x.get("case_id") or ""), blocked=bool(x.get("blocked")), evidence_confidence=float(x.get("evidence_confidence", 0.5)), latency_ms=x.get("latency_ms"), execution_id=x.get("execution_id"), details=x.get("details")) for x in (args.get("outcomes") or []) if isinstance(x, dict)]
+        report = replay_security_corpus(cases, outcomes, generate_counter_cases=bool(args.get("generate_counter_cases", True)))
         return json.dumps(report.to_dict(), indent=2, ensure_ascii=False)
     if name == "webmcp_security_evolution":
         store = SecurityEvolutionStore()
