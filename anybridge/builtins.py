@@ -17,6 +17,7 @@ from .content_boundary import wrap_tool_output
 from .webmcp_security import evaluate_webmcp_security
 from .webmcp_security_evolution import DefenseObservation, SecurityEvolutionStore, evolve_security_capabilities, evaluate_and_evolve_security
 from .webmcp_replay import SecurityReplayCase, SecurityReplayOutcome, replay_security_corpus
+from .webmcp_defense_selection import select_defense
 from .workflows import WorkflowStore
 
 BUILTIN_TOOLS = [
@@ -322,6 +323,11 @@ BUILTIN_TOOLS = [
         "name": "webmcp_security_pipeline",
         "description": "Run AnyBridge deterministic WebMCP security evaluation through learning and capability evolution. Report only; generated cases are never executed.",
         "inputSchema": {"type": "object", "properties": {"provider": {"type": "string"}, "origin": {"type": "string"}, "defense": {"type": "string"}, "generate_counter_cases": {"type": "boolean", "default": true}}},
+    },
+    {
+        "name": "webmcp_defense_decision",
+        "description": "Select and compare WebMCP defenses from caller-supplied security outcomes. Report only; no tool or attack execution.",
+        "inputSchema": {"type": "object", "properties": {"observations": {"type": "array"}, "attack_class": {"type": "string"}, "provider": {"type": "string"}, "origin": {"type": "string"}, "schema_hash": {"type": "string"}},"required":["observations","attack_class"]},
     },
     {
         "name": "webmcp_security_replay",
@@ -765,6 +771,10 @@ async def call_builtin(
     if name == "webmcp_security_pipeline":
         report = evaluate_and_evolve_security(provider=args.get("provider", "playwright"), origin=args.get("origin", "https://trusted.example"), defense=args.get("defense", "content_boundary"), generate_counter_cases=bool(args.get("generate_counter_cases", True)))
         return json.dumps(report.to_dict(), indent=2, ensure_ascii=False)
+    if name == "webmcp_defense_decision":
+        observations = [DefenseObservation(str(x["attack_id"]), str(x["attack_class"]), str(x["provider"]), str(x["origin"]), str(x["schema_hash"]), str(x["defense"]), bool(x["blocked"]), float(x.get("evidence_confidence", 0.5)), x.get("latency_ms"), x.get("execution_id"), x.get("details")) for x in (args.get("observations") or []) if isinstance(x, dict)]
+        decision = select_defense(observations, attack_class=str(args["attack_class"]), provider=str(args.get("provider") or ""), origin=str(args.get("origin") or ""), schema_hash=str(args.get("schema_hash") or ""))
+        return json.dumps(decision.to_dict(), indent=2, ensure_ascii=False)
     if name == "webmcp_security_replay":
         cases = [SecurityReplayCase(case_id=str(x.get("case_id") or x.get("id") or ""), attack_id=str(x.get("attack_id") or x.get("id") or ""), attack_class=str(x.get("attack_class") or x.get("category") or "unknown"), provider=str(x.get("provider") or "unknown"), origin=str(x.get("origin") or ""), schema_hash=str(x.get("schema_hash") or ""), defense=str(x.get("defense") or "unknown"), payload=x.get("payload") or {}) for x in (args.get("cases") or []) if isinstance(x, dict)]
         outcomes = [SecurityReplayOutcome(case_id=str(x.get("case_id") or ""), blocked=bool(x.get("blocked")), evidence_confidence=float(x.get("evidence_confidence", 0.5)), latency_ms=x.get("latency_ms"), execution_id=x.get("execution_id"), details=x.get("details")) for x in (args.get("outcomes") or []) if isinstance(x, dict)]
