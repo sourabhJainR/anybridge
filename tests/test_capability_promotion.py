@@ -49,3 +49,41 @@ def test_canary_cannot_bypass_holdout_gate():
     decision = store.evaluate_canary("cap", [CanaryEvidence("cap", True)])
     assert decision.state.status == "candidate"
     assert decision.action == "collect_holdout"
+
+
+def test_multi_cohort_requires_distinct_independence():
+    store = CapabilityPromotionStore(min_cohorts=2)
+    decision = store.evaluate_multi_cohort([
+        CohortEvidence("cap", "a", True, 1.0, "domain", "family", "same"),
+        CohortEvidence("cap", "b", True, 1.0, "domain", "family", "same"),
+    ])
+    assert decision.state.status == "candidate"
+
+
+def test_multi_cohort_opens_canary_only_when_each_cohort_is_strong():
+    store = CapabilityPromotionStore(min_cohorts=2)
+    decision = store.evaluate_multi_cohort([
+        CohortEvidence("cap", "a", True, 1.0, "domain-a", "family-a", "a"),
+        CohortEvidence("cap", "b", True, 1.0, "domain-b", "family-b", "b"),
+    ])
+    assert decision.state.status == "canary"
+
+
+def test_weak_independent_cohort_blocks_multi_cohort_promotion():
+    store = CapabilityPromotionStore(min_cohorts=2)
+    decision = store.evaluate_multi_cohort([
+        CohortEvidence("cap", "a", True, 1.0, "domain-a", "family-a", "a"),
+        CohortEvidence("cap", "b", False, 1.0, "domain-b", "family-b", "b"),
+    ])
+    assert decision.state.status == "candidate"
+
+
+def test_repeated_post_promotion_decay_retires_capability():
+    store = CapabilityPromotionStore(min_cohorts=2, retirement_failures=2)
+    store.evaluate_multi_cohort([
+        CohortEvidence("cap", "a", True, 1.0, "domain-a", "family-a", "a"),
+        CohortEvidence("cap", "b", True, 1.0, "domain-b", "family-b", "b"),
+    ])
+    store.evaluate_canary("cap", [CanaryEvidence("cap", True), CanaryEvidence("cap", True), CanaryEvidence("cap", True)])
+    assert store.evaluate_canary("cap", [CanaryEvidence("cap", False)])[0 if False else "state"].status == "rolled_back"
+    assert store.evaluate_canary("cap", [CanaryEvidence("cap", False)]).state.status == "retired"
