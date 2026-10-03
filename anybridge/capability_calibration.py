@@ -46,7 +46,7 @@ class CapabilityCalibrationStore:
         return self.result(observation.capability_id)
 
     def result(self, capability_id):
-        xs=[x for x in self._observations if x.capability_id==capability_id and x.holdout]
+        xs=[x for x in self._observations if x.capability_id==capability_id and x.eligible]
         n=len(xs)
         rate=sum(int(x.passed) for x in xs)/n if n else 0.0
         predicted=sum(_b(x.predicted_confidence) for x in xs)/n if n else 0.0
