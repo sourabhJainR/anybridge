@@ -250,10 +250,10 @@ class CapabilityTransferStore:
         passed = sum(int(x.passed) for x in xs)
         rate = passed / len(xs) if xs else 0.0
         h = self._hypotheses[transfer_id]
-        if h.status == "validated" and len(xs) >= self.canary_min_attempts and rate >= self.canary_min_rate:
-            status, action, reason = "graduated", "promote_transfer", "canary threshold passed"
-        elif h.status == "validated" and len(xs) >= self.canary_min_attempts and rate < self.rollback_rate:
+        if h.status in ("validated", "graduated") and len(xs) >= self.canary_min_attempts and rate < self.rollback_rate:
             status, action, reason = "rolled_back", "rollback_transfer", "canary regression detected"
+        elif h.status in ("validated", "graduated") and len(xs) >= self.canary_min_attempts and rate >= self.canary_min_rate:
+            status, action, reason = "graduated", "promote_transfer", "canary threshold passed"
         else:
             status, action, reason = h.status, "continue_canary", "awaiting canary threshold"
         updated = TransferHypothesis(
