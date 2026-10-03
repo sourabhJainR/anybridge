@@ -8,6 +8,12 @@ def test_one_cohort_cannot_promote():
     d=s.ingest([obs("cap","a"),obs("cap","a")])[0]
     assert d.status=="candidate"
 
+def test_same_benchmark_family_cannot_fake_independence():
+    s=EvidenceAwarePromotionStore(min_cohorts=2)
+    d=s.ingest([CohortEvidence("cap","a",True,1.0,"domain","family","same"),
+                CohortEvidence("cap","b",True,1.0,"domain","family","same")])[0]
+    assert d.status=="candidate"
+
 def test_independent_cohorts_enter_canary():
     s=EvidenceAwarePromotionStore(min_cohorts=2)
     d=s.ingest([obs("cap","a"),obs("cap","b")])[0]
