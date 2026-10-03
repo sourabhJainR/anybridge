@@ -258,6 +258,8 @@ def evaluate_and_evolve_security(*, provider: str = "playwright", origin: str = 
     newly_promoted = 0
     for observation in observations: newly_promoted += learner.observe(observation).newly_promoted
     for promoted in learner.promoted_cases():
+        if evolver.seed(promoted.case_id) is not None:
+            continue
         evolver.promote_seed(case_id=promoted.case_id, attack_class=promoted.attack_class, defense=promoted.defense, payload=promoted.regression_payload, source=promoted.source)
     if generate_counter_cases: evolver.evolve_counter_cases()
     return SecurityEvolutionPipelineReport(evaluation=evaluation.to_dict(), learning={**learner.report(newly_promoted=newly_promoted).to_dict(), "replay_ready": True}, evolution=evolver.report(), active_corpus=evolver.corpus())
