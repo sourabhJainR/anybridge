@@ -52,4 +52,4 @@ def test_bounded_export_is_deterministic():
     store = EvidenceAwarePromotionStore(max_observations=2)
     store.ingest([obs("b", "z", "r1"), obs("a", "x", "r1"), obs("c", "y", "r1")])
     assert len(store.export()["observations"]) == 2
-    assert [x.capability_id for x in store.decisions()] == ["b", "c"]
+    assert [x.capability_id for x in store.decisions()] == ["a", "c"]
