@@ -18,6 +18,7 @@ from .webmcp_security import evaluate_webmcp_security
 from .webmcp_security_evolution import DefenseObservation, SecurityEvolutionStore, evolve_security_capabilities, evaluate_and_evolve_security
 from .webmcp_replay import SecurityReplayCase, SecurityReplayOutcome, replay_security_corpus
 from .webmcp_defense_selection import select_defense
+from .webmcp_capability_graduation import CapabilityGraduationStore
 from .workflows import WorkflowStore
 
 BUILTIN_TOOLS = [
@@ -323,6 +324,11 @@ BUILTIN_TOOLS = [
         "name": "webmcp_security_pipeline",
         "description": "Run AnyBridge deterministic WebMCP security evaluation through learning and capability evolution. Report only; generated cases are never executed.",
         "inputSchema": {"type": "object", "properties": {"provider": {"type": "string"}, "origin": {"type": "string"}, "defense": {"type": "string"}, "generate_counter_cases": {"type": "boolean", "default": true}}},
+    },
+    {
+        "name": "webmcp_capability_graduation",
+        "description": "Evaluate evidence-gated WebMCP security capability graduation state. Report only; no replay or tool execution.",
+        "inputSchema": {"type": "object", "properties": {"observations": {"type": "array"}, "cohort": {"type": "string", "enum": ["evidence","holdout","canary"]}},"required":["observations","cohort"]},
     },
     {
         "name": "webmcp_defense_decision",
@@ -771,6 +777,13 @@ async def call_builtin(
     if name == "webmcp_security_pipeline":
         report = evaluate_and_evolve_security(provider=args.get("provider", "playwright"), origin=args.get("origin", "https://trusted.example"), defense=args.get("defense", "content_boundary"), generate_counter_cases=bool(args.get("generate_counter_cases", True)))
         return json.dumps(report.to_dict(), indent=2, ensure_ascii=False)
+    if name == "webmcp_capability_graduation":
+        store = CapabilityGraduationStore()
+        cohort = str(args.get("cohort") or "evidence")
+        observations = [DefenseObservation(str(x["attack_id"]), str(x["attack_class"]), str(x["provider"]), str(x["origin"]), str(x["schema_hash"]), str(x["defense"]), bool(x["blocked"]), float(x.get("evidence_confidence", 0.5)), x.get("latency_ms"), x.get("execution_id"), x.get("details")) for x in (args.get("observations") or []) if isinstance(x, dict)]
+        decision = None
+        for observation in observations: decision = store.observe(observation, cohort=cohort)
+        return json.dumps((decision.to_dict() if decision else {"status": "candidate", "reason": "no observations"}), indent=2, ensure_ascii=False)
     if name == "webmcp_defense_decision":
         observations = [DefenseObservation(str(x["attack_id"]), str(x["attack_class"]), str(x["provider"]), str(x["origin"]), str(x["schema_hash"]), str(x["defense"]), bool(x["blocked"]), float(x.get("evidence_confidence", 0.5)), x.get("latency_ms"), x.get("execution_id"), x.get("details")) for x in (args.get("observations") or []) if isinstance(x, dict)]
         decision = select_defense(observations, attack_class=str(args["attack_class"]), provider=str(args.get("provider") or ""), origin=str(args.get("origin") or ""), schema_hash=str(args.get("schema_hash") or ""))
