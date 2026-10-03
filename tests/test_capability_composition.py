@@ -28,3 +28,12 @@ def test_non_graduated_state_cannot_register():
     try: s.register_graduated(State())
     except ValueError: pass
     else: assert False
+
+
+def test_dependency_graph_and_regression_propagation():
+    s=CapabilityCompositionStore()
+    s.register(CapabilityPrimitive("a","origin","x",confidence=1.0))
+    s.register(CapabilityPrimitive("b","schema","y",confidence=1.0,dependencies=("a",)))
+    s.observe(CompositionObservation("a::b",("a","b"),True,.95,True))
+    assert s.dependency_graph()["b"] == ("a",)
+    assert s.quarantine_dependents("a") == ("a::b",)
