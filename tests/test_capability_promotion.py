@@ -85,5 +85,5 @@ def test_repeated_post_promotion_decay_retires_capability():
         CohortEvidence("cap", "b", True, 1.0, "domain-b", "family-b", "b"),
     ])
     store.evaluate_canary("cap", [CanaryEvidence("cap", True), CanaryEvidence("cap", True), CanaryEvidence("cap", True)])
-    assert store.evaluate_canary("cap", [CanaryEvidence("cap", False)])[0 if False else "state"].status == "rolled_back"
+    assert store.evaluate_canary("cap", [CanaryEvidence("cap", False)]).state.status == "rolled_back"
     assert store.evaluate_canary("cap", [CanaryEvidence("cap", False)]).state.status == "retired"
