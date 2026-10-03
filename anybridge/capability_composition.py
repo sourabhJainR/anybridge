@@ -119,6 +119,30 @@ class CapabilityCompositionStore:
                 out.append(self.analyze((a.capability_id,b.capability_id)))
         return tuple(sorted(out,key=lambda x:(-x.score,x.chain_id))[:max(1,int(max_length))])
 
+
+    def dependency_graph(self):
+        """Return deterministic prerequisite and dependent edges."""
+        return {p.capability_id: tuple(sorted(p.dependencies))
+                for p in self.primitives()}
+
+    def quarantine_dependents(self, capability_id):
+        """Return chains that must be revalidated when a primitive regresses."""
+        target=str(capability_id)
+        affected=set()
+        for observation in self._observations:
+            if target not in observation.capability_ids:
+                continue
+            affected.add(observation.chain_id)
+        changed=True
+        while changed:
+            changed=False
+            for p in self.primitives():
+                if p.capability_id in affected:
+                    for observation in self._observations:
+                        if p.capability_id in observation.capability_ids and observation.chain_id not in affected:
+                            affected.add(observation.chain_id); changed=True
+        return tuple(sorted(affected))
+
     def export(self):
         return {"version":1,"primitives":[p.to_dict() for p in self.primitives()],
                 "observations":[o.to_dict() for o in self._observations]}
