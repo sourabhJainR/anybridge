@@ -42,3 +42,10 @@ def test_confidence_gate_keeps_capability_in_candidate_state():
     decision = store.evaluate_holdout(HoldoutEvidence("cap", 3, 1.0, 0.79))
     assert decision.state.status == "candidate"
     assert decision.action == "collect_holdout"
+
+
+def test_canary_cannot_bypass_holdout_gate():
+    store = CapabilityPromotionStore()
+    decision = store.evaluate_canary("cap", [CanaryEvidence("cap", True)])
+    assert decision.state.status == "candidate"
+    assert decision.action == "collect_holdout"
