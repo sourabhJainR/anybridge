@@ -973,6 +973,55 @@ async def call_builtin(
                 str(item.get("details") or ""),
             ))
         return json.dumps(benchmark.export() | {"results":[x.to_dict() for x in benchmark.ingest(cases,outcomes)]},indent=2,ensure_ascii=False)
+    if name == "capability_learning_fabric":
+        from .holdout_benchmark import BenchmarkResult
+        fabric = CapabilityLearningFabric(curriculum_budget=int(args.get("budget", 3)))
+        for item in args.get("candidates") or []:
+            if not isinstance(item, dict):
+                raise ValueError("Each curriculum candidate must be an object.")
+            fabric.register_candidates([CurriculumCandidate(
+                str(item["candidate_id"]), str(item["capability_id"]), str(item.get("domain") or ""),
+                float(item.get("novelty", 0)), float(item.get("uncertainty", 0)),
+                float(item.get("failure_risk", 0)), float(item.get("evidence_value", 0)),
+                float(item.get("estimated_cost", 0)), float(item.get("transfer_gap", 0)),
+            )])
+        outcomes = []
+        for item in args.get("outcomes") or []:
+            if not isinstance(item, dict):
+                raise ValueError("Each capability outcome must be an object.")
+            outcomes.append(CapabilityOutcome(
+                capability_id=str(item["capability_id"]),
+                predicted_confidence=float(item["predicted_confidence"]),
+                passed=bool(item["passed"]),
+                evidence_confidence=float(item.get("evidence_confidence", 0.0)),
+                holdout=bool(item.get("holdout", False)),
+                independent=bool(item.get("independent", False)),
+                domain=str(item.get("domain") or ""),
+                provider=str(item.get("provider") or ""),
+                cohort_id=str(item.get("cohort_id") or ""),
+                benchmark_family=str(item.get("benchmark_family") or ""),
+                independence_key=str(item.get("independence_key") or ""),
+                candidate_id=str(item.get("candidate_id") or ""),
+                execution_id=str(item.get("execution_id") or ""),
+                details=str(item.get("details") or ""),
+            ))
+        benchmark_results = []
+        for item in args.get("benchmark_results") or []:
+            if not isinstance(item, dict):
+                raise ValueError("Each benchmark result must be an object.")
+            benchmark_results.append(BenchmarkResult(
+                str(item["capability_id"]), str(item["domain"]),
+                int(item["attempts"]), float(item["pass_rate"]),
+                float(item.get("confidence", 0.0)),
+                int(item.get("independent_attempts", item["attempts"])),
+                str(item["status"]), str(item.get("reason", "")),
+                str(item.get("cohort_id") or item.get("independence_key") or ""),
+                str(item.get("independence_key") or item.get("cohort_id") or ""),
+                str(item.get("benchmark_family") or "generated_holdout"),
+            ))
+        report = fabric.evaluate(outcomes, benchmark_results=benchmark_results)
+        return json.dumps(report.to_dict(), indent=2, ensure_ascii=False)
+
     if name == "capability_outcome_attribution":
         calibration = CapabilityCalibrationStore()
         curriculum = CapabilityCurriculumStore()
