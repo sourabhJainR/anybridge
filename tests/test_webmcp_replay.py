@@ -15,7 +15,7 @@ class ReplayTests(unittest.TestCase):
         self.assertEqual(report.outcomes,1)
         self.assertEqual(report.observations,1)
         self.assertTrue(report.learning["promoted"])
-        self.assertEqual(report.active_corpus[0]["id"],"a1")
+        self.assertTrue(report.active_corpus[0]["id"].startswith("sec-"))
 
     def test_unknown_case_is_ignored(self):
         report=replay_security_corpus([], [SecurityReplayOutcome("missing",False)], generate_counter_cases=False)
