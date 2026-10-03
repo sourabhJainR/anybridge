@@ -22,6 +22,7 @@ from .webmcp_capability_graduation import CapabilityGraduationStore
 from .capability_transfer import CapabilityTransferStore, TransferObservation
 from .capability_curriculum import CapabilityCurriculumStore, CurriculumCandidate, CurriculumObservation
 from .capability_calibration import CapabilityCalibrationStore, CalibrationObservation
+from .holdout_generation import HoldoutGenerator, BenchmarkObservation
 from .workflows import WorkflowStore
 
 BUILTIN_TOOLS = [
@@ -372,6 +373,11 @@ BUILTIN_TOOLS = [
         "name": "capability_confidence_calibration",
         "description": "Calibrate predicted capability confidence against caller-supplied holdout outcomes. Report only; no execution or authorization.",
         "inputSchema": {"type": "object", "properties": {"observations": {"type": "array"}, "capability_id": {"type": "string"}},"required":["observations"]},
+    },
+    {
+        "name": "capability_holdout_generation",
+        "description": "Generate bounded provenance-marked holdout cases from capability metadata and accept only independently scored outcomes. Generated cases are data, never executable instructions.",
+        "inputSchema": {"type":"object","properties":{"capabilities":{"type":"array"},"target_domains":{"type":"array"},"observations":{"type":"array"}},"required":["capabilities","target_domains"]},
     },
     {
         "name": "webmcp_security_evaluation",
@@ -909,6 +915,29 @@ async def call_builtin(
         if args.get("capability_id"):
             return json.dumps(store.result(str(args["capability_id"])).to_dict(), indent=2, ensure_ascii=False)
         return json.dumps([x.to_dict() for x in store.results()], indent=2, ensure_ascii=False)
+    if name == "capability_holdout_generation":
+        from .capability_composition import CapabilityPrimitive
+        generator = HoldoutGenerator()
+        primitives = []
+        for item in args.get("capabilities") or []:
+            if not isinstance(item, dict):
+                raise ValueError("Each capability must be an object.")
+            primitives.append(CapabilityPrimitive(
+                str(item["capability_id"]), str(item["attack_class"]), str(item["defense"]),
+                int(item.get("version",1)), float(item.get("confidence",0)),
+                tuple(item.get("dependencies") or ()), tuple(item.get("compatible_with") or ()),
+                tuple(item.get("incompatible_with") or ()),
+            ))
+        cases = generator.generate(primitives, target_domains=args["target_domains"])
+        for item in args.get("observations") or []:
+            if not isinstance(item, dict):
+                raise ValueError("Each holdout observation must be an object.")
+            generator.observe(BenchmarkObservation(
+                str(item["case_id"]), bool(item["passed"]),
+                float(item.get("evidence_confidence",0)), bool(item.get("independent",True)),
+                str(item.get("execution_id") or ""), str(item.get("details") or ""),
+            ))
+        return json.dumps(generator.export(), indent=2, ensure_ascii=False)
     if name == "webmcp_security_evaluation":
         return json.dumps(evaluate_webmcp_security().to_dict(), indent=2, ensure_ascii=False)
     if name == "call_webmcp_tool":
