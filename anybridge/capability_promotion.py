@@ -107,6 +107,14 @@ class CapabilityPromotionStore:
         prior = self._states.get(key)
         if prior is None:
             raise KeyError(key)
+        if prior.status not in {"canary", "promoted"}:
+            return self._set(
+                key,
+                status=prior.status,
+                reason="independent holdout gate has not opened canary",
+                prior=prior,
+                canary_attempts=len(bucket),
+            )
         attempts = len(bucket)
         rate = sum(int(x.passed) for x in bucket) / attempts if attempts else 0.0
         if attempts >= 1 and rate < self.rollback_rate:
