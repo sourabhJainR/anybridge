@@ -92,6 +92,10 @@ def replay_security_corpus(cases: Iterable[SecurityReplayCase | Mapping[str, Any
         evolver.observe(DefenseObservation(case.attack_id, case.attack_class, case.provider, case.origin,
             case.schema_hash, case.defense, outcome.blocked, outcome.evidence_confidence, outcome.latency_ms,
             outcome.execution_id, details), regression_payload=case.payload)
+        for promoted in learner.promoted_cases():
+            if evolver.seed(promoted.case_id) is None:
+                evolver.promote_seed(case_id=promoted.case_id, attack_class=promoted.attack_class,
+                    defense=promoted.defense, payload=promoted.regression_payload, source=promoted.source)
     if generate_counter_cases:
         evolver.evolve_counter_cases()
     return SecurityReplayReport(cases=len(normalized_cases), outcomes=outcome_count, ignored_outcomes=ignored,
