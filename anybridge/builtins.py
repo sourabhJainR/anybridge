@@ -20,6 +20,7 @@ from .webmcp_replay import SecurityReplayCase, SecurityReplayOutcome, replay_sec
 from .webmcp_defense_selection import select_defense
 from .webmcp_capability_graduation import CapabilityGraduationStore
 from .capability_transfer import CapabilityTransferStore, TransferObservation
+from .capability_curriculum import CapabilityCurriculumStore, CurriculumCandidate, CurriculumObservation
 from .workflows import WorkflowStore
 
 BUILTIN_TOOLS = [
@@ -356,6 +357,15 @@ BUILTIN_TOOLS = [
             "source_domain": {"type": "string"},
             "observations": {"type": "array"}
         }, "required": ["primitives", "target_domain", "target_capability_class"]},
+    },
+    {
+        "name": "capability_curriculum",
+        "description": "Rank and select the next capability-validation candidates from novelty, uncertainty, failure risk, evidence value, cost, transfer gaps, and realized outcomes. Report only; execution remains caller-owned.",
+        "inputSchema": {"type": "object", "properties": {
+            "candidates": {"type": "array"},
+            "observations": {"type": "array"},
+            "budget": {"type": "integer", "default": 3}
+        }, "required": ["candidates"]},
     },
     {
         "name": "webmcp_security_evaluation",
@@ -859,6 +869,27 @@ async def call_builtin(
             "decisions": decisions,
             "active": [x.to_dict() for x in store.active()],
         }, indent=2, ensure_ascii=False)
+    if name == "capability_curriculum":
+        store = CapabilityCurriculumStore()
+        for item in args.get("candidates") or []:
+            if not isinstance(item, dict):
+                raise ValueError("Each curriculum candidate must be an object.")
+            store.register(CurriculumCandidate(
+                str(item["candidate_id"]), str(item["capability_id"]), str(item.get("domain") or ""),
+                float(item.get("novelty", 0)), float(item.get("uncertainty", 0)),
+                float(item.get("failure_risk", 0)), float(item.get("evidence_value", 0)),
+                float(item.get("estimated_cost", 0)), float(item.get("transfer_gap", 0)),
+            ))
+        for item in args.get("observations") or []:
+            if not isinstance(item, dict):
+                raise ValueError("Each curriculum observation must be an object.")
+            store.observe(CurriculumObservation(
+                str(item["candidate_id"]), bool(item["passed"]), bool(item.get("holdout", False)),
+                float(item.get("evidence_confidence", 0)), float(item.get("cost", 0)),
+                float(item.get("duration_ms", 0)), str(item.get("details") or ""),
+            ))
+        decision = store.decide(budget=int(args.get("budget", 3)))
+        return json.dumps(decision.to_dict(), indent=2, ensure_ascii=False)
     if name == "webmcp_security_evaluation":
         return json.dumps(evaluate_webmcp_security().to_dict(), indent=2, ensure_ascii=False)
     if name == "call_webmcp_tool":
