@@ -88,7 +88,7 @@ def replay_security_corpus(cases: Iterable[SecurityReplayCase | Mapping[str, Any
         details.setdefault("replay_case_id", case.case_id)
         learner.observe(SecurityObservation(case.attack_id, case.attack_class, case.provider, case.origin,
             case.schema_hash, case.defense, outcome.blocked, outcome.evidence_confidence, outcome.latency_ms,
-            outcome.execution_id, details))
+            outcome.execution_id, details), regression_payload=case.payload)
         evolver.observe(DefenseObservation(case.attack_id, case.attack_class, case.provider, case.origin,
             case.schema_hash, case.defense, outcome.blocked, outcome.evidence_confidence, outcome.latency_ms,
             outcome.execution_id, details), regression_payload=case.payload)
