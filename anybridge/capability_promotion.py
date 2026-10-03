@@ -29,6 +29,20 @@ class CanaryEvidence:
 
 
 @dataclass(frozen=True)
+class CohortEvidence:
+    capability_id: str
+    cohort_id: str
+    passed: bool
+    confidence: float = 0.0
+    domain: str = ""
+    benchmark_family: str = ""
+    independence_key: str = ""
+
+    def key(self) -> str:
+        return self.independence_key or f"{self.domain}|{self.benchmark_family}|{self.cohort_id}"
+
+
+@dataclass(frozen=True)
 class CapabilityPromotionState:
     capability_id: str
     status: str
@@ -66,6 +80,8 @@ class CapabilityPromotionStore:
         canary_min_attempts: int = 3,
         canary_min_rate: float = 0.90,
         rollback_rate: float = 0.75,
+        min_cohorts: int = 3,
+        retirement_failures: int = 3,
     ):
         self.holdout_min_attempts = max(1, int(holdout_min_attempts))
         self.holdout_min_rate = _bounded(holdout_min_rate)
@@ -73,9 +89,50 @@ class CapabilityPromotionStore:
         self.canary_min_attempts = max(1, int(canary_min_attempts))
         self.canary_min_rate = _bounded(canary_min_rate)
         self.rollback_rate = _bounded(rollback_rate)
+        self.min_cohorts = max(1, int(min_cohorts))
+        self.retirement_failures = max(1, int(retirement_failures))
+        self._cohorts: dict[str, dict[str, list[CohortEvidence]]] = {}
+        self._decay_streak: dict[str, int] = {}
         self._states: dict[str, CapabilityPromotionState] = {}
         self._canaries: dict[str, list[CanaryEvidence]] = {}
         self._versions: dict[str, int] = {}
+
+    def evaluate_multi_cohort(self, observations: Iterable[CohortEvidence]) -> CapabilityPromotionDecision:
+        items = [x for x in observations if x.capability_id and x.cohort_id]
+        if not items:
+            raise ValueError("At least one cohort observation is required.")
+        capability_ids = {x.capability_id for x in items}
+        if len(capability_ids) != 1:
+            raise ValueError("Multi-cohort evidence must contain exactly one capability.")
+        capability_id = next(iter(capability_ids))
+        groups = self._cohorts.setdefault(capability_id, {})
+        for item in items:
+            groups.setdefault(item.key(), []).append(item)
+        eligible = []
+        for key, bucket in sorted(groups.items()):
+            rate = sum(int(x.passed) for x in bucket) / len(bucket)
+            confidence = sum(_bounded(x.confidence) for x in bucket) / len(bucket)
+            eligible.append((key, rate, confidence, len(bucket)))
+        if len(eligible) < self.min_cohorts:
+            return self._set(
+                capability_id, status="candidate",
+                reason="distinct independent cohorts are insufficient",
+                holdout=HoldoutEvidence(capability_id, sum(x[3] for x in eligible), 0.0, 0.0, True),
+            )
+        weak = [x for x in eligible if x[1] < self.holdout_min_rate or x[2] < self.min_confidence]
+        aggregate_rate = sum(x[1] for x in eligible) / len(eligible)
+        aggregate_confidence = sum(x[2] for x in eligible) / len(eligible)
+        if weak:
+            return self._set(
+                capability_id, status="candidate",
+                reason="weak independent cohort blocks promotion",
+                holdout=HoldoutEvidence(capability_id, sum(x[3] for x in eligible), aggregate_rate, aggregate_confidence, True),
+            )
+        return self._set(
+            capability_id, status="canary",
+            reason="multi-cohort independent holdout thresholds reached; canary permitted",
+            holdout=HoldoutEvidence(capability_id, sum(x[3] for x in eligible), aggregate_rate, aggregate_confidence, True),
+        )
 
     def evaluate_holdout(self, evidence: HoldoutEvidence) -> CapabilityPromotionDecision:
         if not evidence.independent:
@@ -107,6 +164,23 @@ class CapabilityPromotionStore:
         prior = self._states.get(key)
         if prior is None:
             raise KeyError(key)
+        if prior.status == "rolled_back":
+            attempts = len(bucket)
+            rate = sum(int(x.passed) for x in bucket) / attempts if attempts else 0.0
+            if attempts and rate < self.rollback_rate:
+                self._decay_streak[key] = self._decay_streak.get(key, 0) + 1
+                if self._decay_streak[key] >= self.retirement_failures:
+                    self._versions[key] = self._versions.get(key, prior.version) + 1
+                    return self._set(
+                        key, status="retired",
+                        reason="repeated post-promotion decay requires retirement",
+                        prior=prior, canary_attempts=attempts, canary_rate=rate,
+                    )
+            return self._set(
+                key, status="rolled_back",
+                reason="capability remains quarantined after regression",
+                prior=prior, canary_attempts=attempts, canary_rate=rate,
+            )
         if prior.status not in {"canary", "promoted"}:
             return self._set(
                 key,
@@ -182,6 +256,7 @@ class CapabilityPromotionStore:
             "canary": "run_canary",
             "promoted": "use_capability",
             "rolled_back": "quarantine",
+            "retired": "retire",
         }[status]
         return CapabilityPromotionDecision(capability_id, action, state)
 
@@ -195,3 +270,5 @@ class CapabilityPromotionStore:
         self._states.clear()
         self._canaries.clear()
         self._versions.clear()
+        self._cohorts.clear()
+        self._decay_streak.clear()
