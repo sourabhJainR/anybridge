@@ -9,6 +9,8 @@ from dataclasses import dataclass
 import hashlib, json
 from typing import Any, Iterable, Mapping
 
+from .webmcp_security import evaluate_webmcp_security
+
 def _canonical(value: object) -> str:
     try: return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     except (TypeError, ValueError, RecursionError): return repr(value)
