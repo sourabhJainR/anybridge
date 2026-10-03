@@ -973,6 +973,49 @@ async def call_builtin(
                 str(item.get("details") or ""),
             ))
         return json.dumps(benchmark.export() | {"results":[x.to_dict() for x in benchmark.ingest(cases,outcomes)]},indent=2,ensure_ascii=False)
+    if name == "capability_outcome_attribution":
+        calibration = CapabilityCalibrationStore()
+        curriculum = CapabilityCurriculumStore()
+        for item in args.get("candidates") or []:
+            if not isinstance(item, dict):
+                raise ValueError("Each curriculum candidate must be an object.")
+            curriculum.register(CurriculumCandidate(
+                str(item["candidate_id"]), str(item["capability_id"]), str(item.get("domain") or ""),
+                float(item.get("novelty", 0)), float(item.get("uncertainty", 0)),
+                float(item.get("failure_risk", 0)), float(item.get("evidence_value", 0)),
+                float(item.get("estimated_cost", 0)), float(item.get("transfer_gap", 0)),
+            ))
+        for item in args.get("calibration_history") or []:
+            if not isinstance(item, dict):
+                raise ValueError("Each calibration history item must be an object.")
+            calibration.observe(CalibrationObservation(
+                str(item["capability_id"]), float(item["predicted_confidence"]),
+                bool(item["passed"]), bool(item.get("holdout", False)),
+                float(item.get("evidence_confidence", 0.0)), bool(item.get("eligible", True)),
+            ))
+        outcomes = []
+        for item in args.get("outcomes") or []:
+            if not isinstance(item, dict):
+                raise ValueError("Each capability outcome must be an object.")
+            outcomes.append(CapabilityOutcome(
+                capability_id=str(item["capability_id"]),
+                predicted_confidence=float(item["predicted_confidence"]),
+                passed=bool(item["passed"]),
+                evidence_confidence=float(item.get("evidence_confidence", 0.0)),
+                holdout=bool(item.get("holdout", False)),
+                independent=bool(item.get("independent", False)),
+                domain=str(item.get("domain") or ""),
+                provider=str(item.get("provider") or ""),
+                cohort_id=str(item.get("cohort_id") or ""),
+                benchmark_family=str(item.get("benchmark_family") or ""),
+                independence_key=str(item.get("independence_key") or ""),
+                candidate_id=str(item.get("candidate_id") or ""),
+                execution_id=str(item.get("execution_id") or ""),
+                details=str(item.get("details") or ""),
+            ))
+        store = CapabilityOutcomeAttributionStore()
+        report = store.report(outcomes, calibration_store=calibration, curriculum_store=curriculum)
+        return json.dumps(report.to_dict(), indent=2, ensure_ascii=False)
     if name == "capability_promotion_decision":
         holdout = args.get("holdout") or {}
         if not isinstance(holdout, dict):
