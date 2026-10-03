@@ -163,6 +163,10 @@ class SecurityEvolutionStore:
             oldest=min(self._seeds,key=lambda k:self._seeds[k].last_seen); del self._seeds[oldest]
         return seed
 
+    def seed(self, case_id: str) -> RegressionSeed | None:
+        """Return lifecycle state for a promoted case without exposing mutable state."""
+        return self._seeds.get(str(case_id))
+
     def effectiveness(self): return tuple(sorted(self._effectiveness.values(),key=lambda x:x.signature))
     def regressions(self):
         return tuple(sorted((DefenseRegression(x.attack_class,x.defense,x.block_rate,self.baseline_min_rate,x.attempts,
