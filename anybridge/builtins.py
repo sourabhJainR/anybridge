@@ -959,7 +959,7 @@ async def call_builtin(
                 str(item["capability_id"]), str(item["cohort_id"]), bool(item["passed"]),
                 float(item.get("confidence", item.get("evidence_confidence", 0.0))),
                 str(item.get("domain") or ""), str(item.get("benchmark_family") or ""),
-                str(item.get("execution_id") or ""),
+                str(item.get("independence_key") or ""), str(item.get("execution_id") or ""),
             )])
         if args.get("capability_id"):
             return json.dumps(store.decide(str(args["capability_id"])).to_dict(), indent=2, ensure_ascii=False)
