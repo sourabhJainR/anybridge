@@ -1,6 +1,7 @@
 from anybridge.capability_promotion import (
     CanaryEvidence,
     CapabilityPromotionStore,
+    CohortEvidence,
     HoldoutEvidence,
 )
 
