@@ -19,6 +19,7 @@ from .webmcp_security_evolution import DefenseObservation, SecurityEvolutionStor
 from .webmcp_replay import SecurityReplayCase, SecurityReplayOutcome, replay_security_corpus
 from .webmcp_defense_selection import select_defense
 from .webmcp_capability_graduation import CapabilityGraduationStore
+from .capability_transfer import CapabilityTransferStore, TransferObservation
 from .workflows import WorkflowStore
 
 BUILTIN_TOOLS = [
@@ -344,6 +345,17 @@ BUILTIN_TOOLS = [
         "name": "webmcp_security_evolution",
         "description": "Analyze caller-supplied WebMCP security outcomes to learn defense effectiveness, detect regressions, evolve bounded counter-cases, and manage regression-seed lifecycle. Does not execute generated cases.",
         "inputSchema": {"type": "object", "properties": {"observations": {"type": "array"}, "generate_counter_cases": {"type": "boolean", "default": true}}, "required": ["observations"]},
+    },
+    {
+        "name": "capability_cross_domain_transfer",
+        "description": "Abstract verified capabilities and evaluate deterministic cross-domain transfer hypotheses from caller-supplied outcomes. Report only; holdout and canary execution remain caller-owned.",
+        "inputSchema": {"type": "object", "properties": {
+            "primitives": {"type": "array"},
+            "target_domain": {"type": "string"},
+            "target_capability_class": {"type": "string"},
+            "source_domain": {"type": "string"},
+            "observations": {"type": "array"}
+        }, "required": ["primitives", "target_domain", "target_capability_class"]},
     },
     {
         "name": "webmcp_security_evaluation",
@@ -808,6 +820,45 @@ async def call_builtin(
             ))
         report = evolve_security_capabilities(observations, store=store, generate_counter_cases=bool(args.get("generate_counter_cases", True)))
         return json.dumps(report.to_dict(), indent=2, ensure_ascii=False)
+    if name == "capability_cross_domain_transfer":
+        from .capability_composition import CapabilityPrimitive
+        store = CapabilityTransferStore()
+        primitives = []
+        for item in args.get("primitives") or []:
+            if not isinstance(item, dict):
+                raise ValueError("Each transfer primitive must be an object.")
+            primitives.append(CapabilityPrimitive(
+                str(item["capability_id"]), str(item["attack_class"]), str(item["defense"]),
+                int(item.get("version", 1)), float(item.get("confidence", 0.0)),
+                tuple(item.get("dependencies") or ()), tuple(item.get("compatible_with") or ()),
+                tuple(item.get("incompatible_with") or ()),
+            ))
+        store.abstract_patterns(primitives, source_domain=str(args.get("source_domain") or "source"))
+        hypotheses = store.propose(
+            target_domain=str(args["target_domain"]),
+            target_capability_class=str(args["target_capability_class"]),
+            source_domain=args.get("source_domain"),
+        )
+        decisions = []
+        for item in args.get("observations") or []:
+            if not isinstance(item, dict):
+                raise ValueError("Each transfer observation must be an object.")
+            observation = TransferObservation(
+                transfer_id=str(item["transfer_id"]),
+                passed=bool(item["passed"]),
+                holdout=bool(item.get("holdout", False)),
+                evidence_confidence=float(item.get("evidence_confidence", 0.5)),
+                source_domain=str(item.get("source_domain") or ""),
+                target_domain=str(item.get("target_domain") or ""),
+                execution_id=str(item.get("execution_id") or ""),
+                details=str(item.get("details") or ""),
+            )
+            decisions.append(store.observe(observation).to_dict())
+        return json.dumps({
+            "hypotheses": [x.to_dict() for x in hypotheses],
+            "decisions": decisions,
+            "active": [x.to_dict() for x in store.active()],
+        }, indent=2, ensure_ascii=False)
     if name == "webmcp_security_evaluation":
         return json.dumps(evaluate_webmcp_security().to_dict(), indent=2, ensure_ascii=False)
     if name == "call_webmcp_tool":
