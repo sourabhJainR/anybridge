@@ -116,6 +116,20 @@ class CapabilityInventionStore:
                                  InventionHypothesis(h.hypothesis_id,h.capability_ids,h.attack_classes,
                                                      h.novelty,h.confidence,h.rationale,status))
 
+
+    def validated_capability_ids(self, hypothesis_id):
+        """Return a validated hypothesis's primitive IDs for composition handoff."""
+        decision = self.decision(hypothesis_id)
+        if decision.status != "validated":
+            return ()
+        return decision.hypothesis.capability_ids
+
+    def validated_hypotheses(self):
+        return tuple(
+            self._hypotheses[k] for k in sorted(self._hypotheses)
+            if self.decision(k).status == "validated"
+        )
+
     def hypotheses(self):
         return tuple(self._hypotheses[k] for k in sorted(self._hypotheses))
 

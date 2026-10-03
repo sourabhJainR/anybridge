@@ -26,3 +26,12 @@ def test_invention_rejects_incompatible_primitives():
         CapabilityPrimitive("b","schema","y",confidence=1),
     ]
     assert not s.propose(ps)
+
+
+def test_validated_hypothesis_exposes_safe_composition_handoff():
+    s=CapabilityInventionStore(min_holdout=1)
+    ps=[CapabilityPrimitive("a","origin","x",confidence=1), CapabilityPrimitive("b","schema","y",confidence=1)]
+    h=s.propose(ps,max_length=1)[0]
+    s.observe(InventionObservation(h.hypothesis_id,True,True,1.0))
+    assert s.validated_capability_ids(h.hypothesis_id)==("a","b")
+    assert len(s.validated_hypotheses())==1
