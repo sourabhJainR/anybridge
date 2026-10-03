@@ -88,8 +88,21 @@ class EvidenceAwarePromotionStore:
     def decide(self, capability_id):
         eligible, cohorts, attempts, rate, conf=self._promotion(capability_id)
         current=self._state.get(capability_id,"candidate")
-        if current in ("retired","quarantined"):
-            return self._decision(capability_id,current,cohorts,attempts,rate,conf,"terminal state requires explicit reactivation")
+        if current=="retired":
+            return self._decision(capability_id,current,cohorts,attempts,rate,conf,"retired capability requires explicit reactivation")
+        if current=="quarantined":
+            groups=self._cohorts(capability_id)
+            latest=[xs[-1] for _,xs in sorted(groups.items())]
+            if latest:
+                recent_rate=sum(int(x.passed) for x in latest)/len(latest)
+                recent_conf=sum(_b(x.confidence) for x in latest)/len(latest)
+                if recent_rate < self.decay_rate or recent_conf < self.decay_rate:
+                    self._decay_streak[capability_id]+=1
+                    if self._decay_streak[capability_id]>=self.retirement_failures:
+                        self._state[capability_id]="retired"
+                        return self._decision(capability_id,"retired",cohorts,attempts,recent_rate,recent_conf,"repeated decay")
+                    return self._decision(capability_id,"quarantined",cohorts,attempts,recent_rate,recent_conf,"continued decay")
+            return self._decision(capability_id,"quarantined",cohorts,attempts,rate,conf,"quarantined after decay")
         if eligible is not None:
             weak=[x for x in eligible if x[1] < self.promotion_rate or x[2] < self.promotion_confidence]
             if weak:
