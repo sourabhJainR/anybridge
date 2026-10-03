@@ -19,6 +19,7 @@ class CohortEvidence:
     confidence: float = 0.0
     domain: str = ""
     benchmark_family: str = ""
+    independence_key: str = ""
     execution_id: str = ""
     def to_dict(self): return self.__dict__.copy()
 
@@ -63,7 +64,8 @@ class EvidenceAwarePromotionStore:
         groups=defaultdict(list)
         for o in self._observations:
             if o.capability_id==capability_id:
-                groups[o.cohort_id].append(o)
+                key=o.independence_key or f"{o.domain}|{o.benchmark_family}|{o.cohort_id}"
+                groups[key].append(o)
         return groups
 
     def _promotion(self, cap):
