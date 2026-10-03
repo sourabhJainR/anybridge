@@ -21,6 +21,7 @@ from .webmcp_defense_selection import select_defense
 from .webmcp_capability_graduation import CapabilityGraduationStore
 from .capability_transfer import CapabilityTransferStore, TransferObservation
 from .capability_curriculum import CapabilityCurriculumStore, CurriculumCandidate, CurriculumObservation
+from .capability_calibration import CapabilityCalibrationStore, CalibrationObservation
 from .workflows import WorkflowStore
 
 BUILTIN_TOOLS = [
@@ -366,6 +367,11 @@ BUILTIN_TOOLS = [
             "observations": {"type": "array"},
             "budget": {"type": "integer", "default": 3}
         }, "required": ["candidates"]},
+    },
+    {
+        "name": "capability_confidence_calibration",
+        "description": "Calibrate predicted capability confidence against caller-supplied holdout outcomes. Report only; no execution or authorization.",
+        "inputSchema": {"type": "object", "properties": {"observations": {"type": "array"}, "capability_id": {"type": "string"}},"required":["observations"]},
     },
     {
         "name": "webmcp_security_evaluation",
@@ -890,6 +896,19 @@ async def call_builtin(
             ))
         decision = store.decide(budget=int(args.get("budget", 3)))
         return json.dumps(decision.to_dict(), indent=2, ensure_ascii=False)
+    if name == "capability_confidence_calibration":
+        store = CapabilityCalibrationStore()
+        for item in args.get("observations") or []:
+            if not isinstance(item, dict):
+                raise ValueError("Each calibration observation must be an object.")
+            store.observe(CalibrationObservation(
+                str(item["capability_id"]), float(item["predicted_confidence"]),
+                bool(item["passed"]), bool(item.get("holdout", True)),
+                float(item.get("evidence_confidence", 0.0)),
+            ))
+        if args.get("capability_id"):
+            return json.dumps(store.result(str(args["capability_id"])).to_dict(), indent=2, ensure_ascii=False)
+        return json.dumps([x.to_dict() for x in store.results()], indent=2, ensure_ascii=False)
     if name == "webmcp_security_evaluation":
         return json.dumps(evaluate_webmcp_security().to_dict(), indent=2, ensure_ascii=False)
     if name == "call_webmcp_tool":
