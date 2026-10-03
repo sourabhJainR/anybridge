@@ -217,3 +217,41 @@ def evolve_security_capabilities(observations: Iterable[DefenseObservation], *, 
     for observation in observations: target.observe(observation)
     if generate_counter_cases: target.evolve_counter_cases()
     return target.report()
+
+
+@dataclass(frozen=True)
+class SecurityEvolutionPipelineReport:
+    """Unified deterministic evaluation → learning → evolution report."""
+
+    evaluation: Mapping[str, Any]
+    learning: Mapping[str, Any]
+    evolution: SecurityEvolutionReport
+    active_corpus: tuple[Mapping[str, Any], ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "evaluation": dict(self.evaluation),
+            "learning": dict(self.learning),
+            "evolution": self.evolution.to_dict(),
+            "active_corpus": [dict(item) for item in self.active_corpus],
+        }
+
+
+def evaluate_and_evolve_security(*, provider: str = "playwright", origin: str = "https://trusted.example", schema: object | None = None, defense: str = "content_boundary", learning_store: Any | None = None, evolution_store: SecurityEvolutionStore | None = None, generate_counter_cases: bool = True) -> SecurityEvolutionPipelineReport:
+    """Run the deterministic evaluator through both security learning layers.
+
+    No generated counter-case or website tool is executed here. The caller owns
+    replay, persistence, authorization, and remediation.
+    """
+    from .webmcp_learning import SecurityLearningStore, observation_from_evaluation
+    evaluation = evaluate_webmcp_security()
+    learner = learning_store or SecurityLearningStore()
+    evolver = evolution_store or SecurityEvolutionStore()
+    schema_value = schema if schema is not None else {"type": "object"}
+    observations = observation_from_evaluation(evaluation, provider=provider, origin=origin, schema=schema_value, defense=defense)
+    newly_promoted = 0
+    for observation in observations: newly_promoted += learner.observe(observation).newly_promoted
+    for promoted in learner.promoted_cases():
+        evolver.promote_seed(case_id=promoted.case_id, attack_class=promoted.attack_class, defense=promoted.defense, payload=promoted.regression_payload, source=promoted.source)
+    if generate_counter_cases: evolver.evolve_counter_cases()
+    return SecurityEvolutionPipelineReport(evaluation=evaluation.to_dict(), learning={**learner.report(newly_promoted=newly_promoted).to_dict(), "replay_ready": True}, evolution=evolver.report(), active_corpus=evolver.corpus())
