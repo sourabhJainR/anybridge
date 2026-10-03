@@ -88,3 +88,32 @@ def test_repeated_post_promotion_decay_retires_capability():
     store.evaluate_canary("cap", [CanaryEvidence("cap", True), CanaryEvidence("cap", True), CanaryEvidence("cap", True)])
     assert store.evaluate_canary("cap", [CanaryEvidence("cap", False), CanaryEvidence("cap", False)]).state.status == "rolled_back"
     assert store.evaluate_canary("cap", [CanaryEvidence("cap", False)]).state.status == "retired"
+
+
+def test_validated_benchmark_results_flow_into_multi_cohort_promotion():
+    from types import SimpleNamespace
+    store = CapabilityPromotionStore(min_cohorts=2)
+    results = [
+        SimpleNamespace(capability_id="cap", domain="d1", cohort_id="c1", independence_key="c1",
+                        benchmark_family="generated_holdout", status="validated_holdout",
+                        confidence=0.95),
+        SimpleNamespace(capability_id="cap", domain="d2", cohort_id="c2", independence_key="c2",
+                        benchmark_family="generated_holdout", status="validated_holdout",
+                        confidence=0.95),
+    ]
+    decision = store.evaluate_benchmark_results(results)
+    assert decision.state.status == "canary"
+
+
+def test_unproven_benchmark_results_cannot_flow_into_promotion():
+    from types import SimpleNamespace
+    store = CapabilityPromotionStore(min_cohorts=1)
+    try:
+        store.evaluate_benchmark_results([
+            SimpleNamespace(capability_id="cap", domain="d", cohort_id="c",
+                            independence_key="c", status="failed_holdout", confidence=1.0)
+        ])
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("failed benchmark must not become promotion evidence")

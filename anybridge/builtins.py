@@ -389,7 +389,7 @@ BUILTIN_TOOLS = [
     {
         "name": "capability_promotion_decision",
         "description": "Evaluate caller-supplied independent holdout and canary evidence for capability promotion or rollback. Does not execute or authorize the capability.",
-        "inputSchema": {"type":"object","properties":{"holdout":{"type":"object"},"cohorts":{"type":"array"},"canary":{"type":"array"}},"required":["holdout"]},
+        "inputSchema": {"type":"object","properties":{"holdout":{"type":"object"},"cohorts":{"type":"array"},"benchmark_results":{"type":"array"},"canary":{"type":"array"}},"required":[]},
     },
     {
         "name": "webmcp_security_evaluation",
@@ -978,7 +978,26 @@ async def call_builtin(
         if not isinstance(holdout, dict):
             raise ValueError("holdout must be an object.")
         store = CapabilityPromotionStore()
-        cohort_items = args.get("cohorts") or []
+        benchmark_items = args.get("benchmark_results") or []
+        if benchmark_items:
+            from .holdout_benchmark import BenchmarkResult
+            results = []
+            for item in benchmark_items:
+                if not isinstance(item, dict):
+                    raise ValueError("Each benchmark result must be an object.")
+                results.append(BenchmarkResult(
+                    str(item["capability_id"]), str(item["domain"]),
+                    int(item["attempts"]), float(item["pass_rate"]),
+                    float(item.get("confidence", 0.0)),
+                    int(item.get("independent_attempts", item["attempts"])),
+                    str(item["status"]), str(item.get("reason", "")),
+                    str(item.get("cohort_id") or item.get("independence_key") or ""),
+                    str(item.get("independence_key") or item.get("cohort_id") or ""),
+                    str(item.get("benchmark_family") or "generated_holdout"),
+                ))
+            decision = store.evaluate_benchmark_results(results)
+        else:
+            cohort_items = args.get("cohorts") or []
         if cohort_items:
             observations = []
             for item in cohort_items:

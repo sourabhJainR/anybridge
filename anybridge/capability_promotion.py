@@ -134,6 +134,28 @@ class CapabilityPromotionStore:
             holdout=HoldoutEvidence(capability_id, sum(x[3] for x in eligible), aggregate_rate, aggregate_confidence, True),
         )
 
+    def evaluate_benchmark_results(self, results: Iterable[object]) -> CapabilityPromotionDecision:
+        """Consume validated benchmark results without losing cohort provenance."""
+        observations = []
+        for result in results:
+            if getattr(result, "status", "") != "validated_holdout":
+                continue
+            cohort_id = str(getattr(result, "cohort_id", "") or getattr(result, "independence_key", ""))
+            if not cohort_id:
+                raise ValueError("Validated benchmark evidence requires a cohort_id or independence_key.")
+            observations.append(CohortEvidence(
+                capability_id=str(result.capability_id),
+                cohort_id=cohort_id,
+                passed=True,
+                confidence=_bounded(result.confidence),
+                domain=str(result.domain),
+                benchmark_family=str(getattr(result, "benchmark_family", "generated_holdout")),
+                independence_key=str(getattr(result, "independence_key", "") or cohort_id),
+            ))
+        if not observations:
+            raise ValueError("No validated benchmark evidence supplied.")
+        return self.evaluate_multi_cohort(observations)
+
     def evaluate_holdout(self, evidence: HoldoutEvidence) -> CapabilityPromotionDecision:
         if not evidence.independent:
             return self._set(

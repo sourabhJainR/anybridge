@@ -21,6 +21,9 @@ class BenchmarkResult:
     independent_attempts: int
     status: str
     reason: str
+    cohort_id: str = ""
+    independence_key: str = ""
+    benchmark_family: str = "generated_holdout"
     def to_dict(self): return self.__dict__.copy()
 
 
@@ -48,14 +51,22 @@ class HoldoutBenchmark:
         groups={}
         for o in self._outcomes:
             c=self._cases[o.case_id]
-            groups.setdefault((c.source_capability_id,c.target_domain),[]).append(o)
+            cohort_key = c.independence_key or f"{c.target_domain}|{c.variation}|{c.case_id}"
+            groups.setdefault((c.source_capability_id,c.target_domain,cohort_key),[]).append(o)
         out=[]
-        for (cap,domain),xs in sorted(groups.items()):
+        for (cap,domain,cohort_key),xs in sorted(groups.items()):
             n=len(xs); rate=sum(int(x.passed) for x in xs)/n
             conf=sum(_b(x.evidence_confidence) for x in xs)/n
             status="validated_holdout" if n>=self.min_attempts and rate>=self.pass_rate else ("failed_holdout" if n>=self.min_attempts else "insufficient_evidence")
-            out.append(BenchmarkResult(cap,domain,n,rate,conf,n,status,"independent benchmark outcome"))
+            out.append(BenchmarkResult(
+                cap,domain,n,rate,conf,n,status,"independent benchmark outcome",
+                cohort_id=cohort_key, independence_key=cohort_key,
+            ))
         return tuple(out[-self.max_results:])
+
+    def promotion_evidence(self):
+        """Return provenance-preserving validated evidence for promotion."""
+        return tuple(x for x in self.results() if x.status == "validated_holdout")
 
     def export(self):
         return {"version":1,"results":[x.to_dict() for x in self.results()]}
