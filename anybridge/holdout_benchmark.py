@@ -42,6 +42,8 @@ class HoldoutBenchmark:
                 continue
             if outcome.case_id not in self._cases:
                 continue
+            if not self._cases[outcome.case_id].independence_key:
+                continue
             self._outcomes.append(outcome)
         if len(self._outcomes)>self.max_results*4:
             self._outcomes=self._outcomes[-self.max_results*4:]
@@ -51,7 +53,7 @@ class HoldoutBenchmark:
         groups={}
         for o in self._outcomes:
             c=self._cases[o.case_id]
-            cohort_key = c.independence_key or f"{c.target_domain}|{c.variation}|{c.case_id}"
+            cohort_key = c.independence_key
             groups.setdefault((c.source_capability_id,c.target_domain,cohort_key),[]).append(o)
         out=[]
         for (cap,domain,cohort_key),xs in sorted(groups.items()):
